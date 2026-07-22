@@ -1,0 +1,8 @@
+{
+  "name": "health-record-app",
+  "version": "1.0.0",
+  "description": "السجل الصحي - Health Record App",
+  "scripts": {
+    "build": "echo 'Static site - no build needed'"
+  }
+}

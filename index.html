@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>السجل الصحي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+<style>
+
+:root{
+  --ink:#0E1F2B;
+  --ink-2:#37505F;
+  --muted:#7C8F9C;
+  --line:#DCE5EA;
+  --line-2:#EDF2F5;
+  --paper:#EFF3F5;
+  --surface:#FFFFFF;
+  --vital:#0B7A6B;
+  --vital-soft:#E3F2EF;
+  --warn:#A96410;
+  --warn-soft:#FBF0E1;
+  --danger:#AF2822;
+  --danger-soft:#FBEAE9;
+  --good:#1F7A45;
+  --good-soft:#E6F3EB;
+  --s:1.10;
+  --r:14px;
+  --shadow:0 1px 2px rgba(14,31,43,.05), 0 8px 24px -12px rgba(14,31,43,.18);
+  --display:'Readex Pro',system-ui,sans-serif;
+  --body:'IBM Plex Sans Arabic',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:calc(15px * var(--s));line-height:1.75;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,.display{font-family:var(--display);font-weight:600;letter-spacing:-.01em;line-height:1.3}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--vital);outline-offset:2px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- shell ---------- */
+.shell{display:flex;min-height:100%}
+.rail{width:262px;min-width:262px;background:var(--ink);color:#C9D8E1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.mark{display:flex;align-items:center;gap:11px}
+.mark-glyph{width:38px;height:38px;border-radius:11px;background:var(--vital);display:grid;place-items:center;flex:none}
+.mark-glyph svg{width:20px;height:20px}
+.brand h1{color:#fff;font-size:calc(16.5px * var(--s));margin:0}
+.brand p{font-size:calc(11.5px * var(--s));color:#7E97A6;margin-top:1px;letter-spacing:.02em}
+.rail nav{flex:1;padding:12px 12px;overflow-y:auto}
+.tab{display:flex;align-items:center;gap:11px;width:100%;padding:9px 12px;border-radius:10px;border:0;background:none;color:#A9BECB;cursor:pointer;font-size:calc(14px * var(--s));text-align:right;margin-bottom:2px;transition:background .15s,color .15s}
+.tab:hover{background:rgba(255,255,255,.06);color:#fff}
+.tab[aria-current="true"]{background:var(--vital);color:#fff;font-weight:500}
+.tab .ico{width:17px;text-align:center;flex:none;opacity:.9}
+.tab .count{margin-inline-start:auto;background:var(--danger);color:#fff;font-size:calc(10.5px * var(--s));font-weight:700;padding:1px 7px;border-radius:20px}
+.rail-foot{padding:14px;border-top:1px solid rgba(255,255,255,.08)}
+.syncbar{display:flex;align-items:center;gap:8px;font-size:calc(12px * var(--s));color:#94ADBB}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--vital);flex:none}
+.dot.busy{background:#D19A2E;animation:blink 1.1s infinite}
+.dot.err{background:#E0645C}
+@keyframes blink{50%{opacity:.25}}
+.rail-foot .stamp{margin-top:7px;font-size:calc(11.5px * var(--s));color:#6E8797;font-variant-numeric:tabular-nums}
+
+main{flex:1;min-width:0;padding:26px 30px 60px;max-width:1180px}
+.view{display:none}
+.view.on{display:block}
+
+/* ---------- page head ---------- */
+.phead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.eyebrow{font-size:calc(11px * var(--s));letter-spacing:.14em;color:var(--muted);font-weight:600;margin-bottom:4px}
+.phead h2{font-size:calc(25px * var(--s))}
+.phead .sub{color:var(--ink-2);font-size:calc(13.5px * var(--s));margin-top:3px}
+
+/* ---------- primitives ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
+.card + .card{margin-top:14px}
+.card h3{font-size:calc(15.5px * var(--s));margin-bottom:2px}
+.card .hint{font-size:calc(12.5px * var(--s));color:var(--muted);margin-bottom:14px}
+.row{display:grid;gap:12px}
+.c2{grid-template-columns:repeat(2,1fr)}
+.c3{grid-template-columns:repeat(3,1fr)}
+.c4{grid-template-columns:repeat(4,1fr)}
+label.f{display:block;font-size:calc(12.5px * var(--s));font-weight:500;color:var(--ink-2);margin-bottom:5px}
+.in{width:100%;padding:calc(9px * var(--s)) calc(12px * var(--s));border:1px solid var(--line);border-radius:9px;background:#FBFCFD;transition:border-color .15s,background .15s}
+.in:focus{outline:none;border-color:var(--vital);background:#fff;box-shadow:0 0 0 3px var(--vital-soft)}
+.in::placeholder{color:#AEBDC7}
+textarea.in{resize:vertical;min-height:64px}
+.btn{border:1px solid transparent;border-radius:9px;padding:calc(9px * var(--s)) calc(18px * var(--s));font-weight:600;font-size:calc(14px * var(--s));cursor:pointer;transition:transform .08s,filter .15s;display:inline-flex;align-items:center;gap:7px}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-p{background:var(--vital);color:#fff}
+.btn-p:hover:not(:disabled){filter:brightness(1.08)}
+.btn-g{background:#fff;border-color:var(--line);color:var(--ink)}
+.btn-g:hover:not(:disabled){border-color:var(--ink-2);background:#F8FAFB}
+.btn-sm{padding:6px 12px;font-size:calc(13px * var(--s))}
+.btn-x{background:none;border:0;color:var(--muted);cursor:pointer;padding:4px;line-height:1;border-radius:6px}
+.btn-x:hover{color:var(--danger);background:var(--danger-soft)}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;font-size:calc(11.5px * var(--s));font-weight:600}
+.t-ok{background:var(--good-soft);color:var(--good)}
+.t-warn{background:var(--warn-soft);color:var(--warn)}
+.t-bad{background:var(--danger-soft);color:var(--danger)}
+.t-neutral{background:var(--line-2);color:var(--ink-2)}
+.note{border-radius:10px;padding:12px 14px;font-size:calc(13.5px * var(--s));line-height:1.6;border:1px solid}
+.n-info{background:#EEF4F7;border-color:#D5E3EA;color:#2A4A5C}
+.n-warn{background:var(--warn-soft);border-color:#EBD5B4;color:var(--warn)}
+.n-bad{background:var(--danger-soft);border-color:#EFC9C6;color:var(--danger)}
+.n-ok{background:var(--good-soft);border-color:#C6E2D1;color:var(--good)}
+.empty{text-align:center;padding:34px 16px;color:var(--muted);font-size:calc(13.5px * var(--s))}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- signature: reference gauge ---------- */
+.gauge{position:relative;height:22px;margin-top:3px}
+.gauge .track{position:absolute;inset:9px 0 auto;height:4px;background:var(--line);border-radius:3px}
+.gauge .band{position:absolute;top:9px;height:4px;background:var(--vital);opacity:.28;border-radius:3px}
+.gauge .pin{position:absolute;top:3px;width:2px;height:16px;background:var(--ink);border-radius:2px}
+.gauge .pin.out{background:var(--danger)}
+.gauge .pin.warn{background:var(--warn)}
+.gauge .ghost{position:absolute;top:6px;width:2px;height:10px;background:var(--muted);opacity:.55;border-radius:2px}
+
+/* ---------- lab rows ---------- */
+.lab{display:grid;grid-template-columns:1.5fr calc(92px * var(--s)) 1fr calc(96px * var(--s));gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-2)}
+.lab:last-child{border-bottom:0}
+.lab .nm{font-size:calc(13.5px * var(--s));font-weight:500}
+.lab .nm small{display:block;color:var(--muted);font-weight:400;font-size:calc(11.5px * var(--s))}
+.lab .in{padding:6px 9px;text-align:center;font-variant-numeric:tabular-nums}
+.labhead{display:grid;grid-template-columns:1.5fr calc(92px * var(--s)) 1fr calc(96px * var(--s));gap:12px;font-size:calc(11px * var(--s));letter-spacing:.08em;color:var(--muted);font-weight:600;padding-bottom:8px;border-bottom:1px solid var(--line)}
+
+/* ---------- food picker ---------- */
+.search-wrap{position:relative}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;font-size:calc(12.5px * var(--s));cursor:pointer;transition:all .12s;white-space:nowrap}
+.chip:hover{border-color:var(--vital);color:var(--vital)}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.foodgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;max-height:340px;overflow-y:auto;padding:3px;margin-top:12px}
+.food{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:#fff;cursor:pointer;text-align:right;transition:all .12s}
+.food:hover,.food:focus-visible{border-color:var(--vital);background:var(--vital-soft)}
+.food b{display:block;font-size:calc(13.5px * var(--s));font-weight:600}
+.food span{font-size:calc(11.5px * var(--s));color:var(--muted);font-variant-numeric:tabular-nums}
+.plate{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.plate:last-child{border-bottom:0}
+.plate .pn{flex:1;min-width:120px;font-size:calc(13.5px * var(--s));font-weight:500}
+.qty{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.qty button{width:calc(28px * var(--s));height:calc(30px * var(--s));border:0;background:#F6F9FA;cursor:pointer;color:var(--ink-2);font-size:calc(15px * var(--s))}
+.qty button:hover{background:var(--line-2)}
+.qty input{width:calc(54px * var(--s));border:0;text-align:center;padding:6px 2px;background:#fff;font-variant-numeric:tabular-nums}
+.qty input:focus{outline:none;background:var(--vital-soft)}
+.totals{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+.tot{text-align:center}
+.tot b{display:block;font-family:var(--display);font-size:calc(19px * var(--s));font-variant-numeric:tabular-nums}
+.tot span{font-size:calc(11px * var(--s));color:var(--muted)}
+
+/* ---------- symptoms ---------- */
+.symrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.symrow:last-child{border-bottom:0}
+.symrow .sn{flex:1;min-width:110px;font-size:calc(13.5px * var(--s))}
+.scale{display:flex;gap:3px;flex-wrap:wrap}
+.scale button{width:calc(28px * var(--s));height:calc(28px * var(--s));border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;font-size:calc(12.5px * var(--s));font-variant-numeric:tabular-nums;color:var(--ink-2);transition:all .1s}
+.scale button:hover{border-color:var(--ink-2)}
+.scale button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:600}
+.scale button[aria-pressed="true"].mid{background:var(--warn);border-color:var(--warn)}
+.scale button[aria-pressed="true"].hi{background:var(--danger);border-color:var(--danger)}
+
+/* ---------- files ---------- */
+.drop{border:1.5px dashed var(--line);border-radius:12px;padding:26px 18px;text-align:center;background:#FBFCFD;cursor:pointer;transition:all .15s}
+.drop:hover,.drop.over{border-color:var(--vital);background:var(--vital-soft)}
+.filerow{display:flex;gap:13px;padding:13px 0;border-bottom:1px solid var(--line-2);align-items:flex-start}
+.filerow:last-child{border-bottom:0}
+.thumb{width:62px;height:62px;border-radius:9px;background:var(--line-2);object-fit:cover;flex:none;display:grid;place-items:center;font-size:calc(20px * var(--s));color:var(--muted)}
+.hash{font-family:ui-monospace,'IBM Plex Sans Arabic',monospace;font-size:calc(11px * var(--s));color:var(--muted);word-break:break-all;direction:ltr;text-align:left;background:var(--line-2);padding:3px 6px;border-radius:5px;display:inline-block;margin-top:5px}
+.checks{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.check{display:flex;gap:7px;align-items:flex-start;font-size:calc(12.5px * var(--s));line-height:1.5}
+.check .b{flex:none;margin-top:5px;width:6px;height:6px;border-radius:50%}
+.b-ok{background:var(--good)}.b-warn{background:var(--warn)}.b-info{background:var(--muted)}
+
+/* ---------- charts / table ---------- */
+.chart{position:relative;height:230px}
+table{width:100%;border-collapse:collapse;font-size:calc(13.5px * var(--s))}
+th{text-align:right;font-size:calc(11px * var(--s));letter-spacing:.08em;color:var(--muted);font-weight:600;padding:0 10px 9px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+
+/* ---------- modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(14,31,43,.55);display:none;align-items:center;justify-content:center;z-index:200;padding:18px;backdrop-filter:blur(3px)}
+.overlay.on{display:flex}
+.modal{background:#fff;border-radius:16px;padding:26px;max-width:520px;width:100%;max-height:86vh;overflow-y:auto}
+
+/* ---------- toast ---------- */
+/* ---------- text size ---------- */
+.sizer{display:flex;align-items:center;gap:5px;font-size:calc(11.5px * var(--s));color:#94ADBB}
+.sizer button{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:#C9D8E1;border-radius:7px;cursor:pointer;padding:3px 9px;line-height:1.2;font-family:var(--display)}
+.sizer button:nth-of-type(1){font-size:calc(11px * var(--s))}
+.sizer button:nth-of-type(2){font-size:calc(13px * var(--s))}
+.sizer button:nth-of-type(3){font-size:calc(15px * var(--s))}
+.sizer button[aria-pressed="true"]{background:var(--vital);border-color:var(--vital);color:#fff}
+.sizer-page{display:none;color:var(--muted)}
+.sizer-page button{border-color:var(--line);background:#fff;color:var(--ink-2)}
+@media(max-width:900px){.sizer-page{display:flex}}
+
+#toast{position:fixed;bottom:22px;inset-inline-start:22px;z-index:300;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:calc(13.5px * var(--s));box-shadow:var(--shadow);animation:rise .2s ease-out}
+.toast.bad{background:var(--danger)}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+
+
+/* ---------- meal-card (medications) ---------- */
+.meal-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.meal-card .m-why[hidden]{display:none}
+
+/* ---------- responsive ---------- */
+@media(max-width:900px){
+  .shell{flex-direction:column}
+  .rail{position:fixed;bottom:0;inset-inline:0;width:100%;height:auto;flex-direction:row;z-index:100;border-top:1px solid rgba(255,255,255,.1)}
+  .brand,.rail-foot{display:none}
+  .rail nav{display:flex;gap:2px;padding:6px 8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab{flex-direction:column;gap:3px;padding:6px 10px;font-size:calc(10.5px * var(--s));margin:0;white-space:nowrap;min-width:60px;justify-content:center}
+  .tab .ico{font-size:calc(16px * var(--s))}
+  .tab .count{margin:0;position:absolute;transform:translate(-14px,-4px)}
+  main{padding:16px 14px 96px;max-width:100%}
+  .c2,.c3,.c4{grid-template-columns:1fr}
+  .lab,.labhead{grid-template-columns:1fr calc(84px * var(--s));gap:8px}
+  .lab .refcol,.labhead .refcol{display:none}
+  .totals{grid-template-columns:repeat(2,1fr)}
+  .phead h2{font-size:calc(21px * var(--s))}
+  #toast{inset-inline:14px;bottom:80px}
+}
+@media print{.rail,#toast,.noprint{display:none!important}main{padding:0;max-width:100%}.view{display:none}.view.on{display:block}.card{box-shadow:none;break-inside:avoid}}
+
+/* ---- إضافات نسخة السحابة ---- */
+.authwrap{min-height:100vh;display:grid;place-items:center;padding:20px}
+.authbox{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:30px;max-width:430px;width:100%;box-shadow:var(--shadow)}
+.authbox h2{font-size:calc(21px * var(--s));margin-bottom:4px}
+.authbox .sub{color:var(--muted);font-size:calc(13px * var(--s));margin-bottom:20px}
+.field{margin-bottom:13px}
+.switcher{display:flex;gap:6px;margin-bottom:20px;background:var(--line-2);padding:4px;border-radius:11px}
+.switcher button{flex:1;border:0;background:none;padding:8px;border-radius:8px;cursor:pointer;font-size:calc(13.5px * var(--s));color:var(--ink-2);font-weight:500}
+.switcher button[aria-pressed="true"]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.who{display:flex;align-items:center;gap:9px;padding:11px 12px;background:rgba(255,255,255,.05);border-radius:11px;margin-bottom:10px}
+.avatar{width:32px;height:32px;border-radius:9px;background:var(--vital);display:grid;place-items:center;color:#fff;font-weight:700;flex:none;font-family:var(--display)}
+.who .nm{flex:1;min-width:0;font-size:calc(12.5px * var(--s));color:#DCE7EE;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who .rl{font-size:calc(10.5px * var(--s));color:#8AA3B2}
+.busy{opacity:.55;pointer-events:none}
+.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ============ إعداد أول مرة ============ -->
+<div class="authwrap" id="setupScreen" hidden>
+  <div class="authbox">
+    <h2>ربط المشروع</h2>
+    <div class="sub">أدخل بيانات مشروعك في Supabase (Settings ← API). تُحفظ في هذا المتصفّح فقط.</div>
+    <div style="text-align:center;font-size:11px;color:#0B7A6B;font-weight:700;margin:4px 0 8px">✓ VERSION_FIXE_2026</div>
+    <div class="field"><label class="f" for="cfgUrl">Project URL</label>
+      <input class="in" id="cfgUrl" dir="ltr" placeholder="https://xxxx.supabase.co"></div>
+    <div class="field"><label class="f" for="cfgKey">المفتاح العلني (Publishable / anon)</label>
+      <textarea class="in" id="cfgKey" dir="ltr" rows="3" placeholder="sb_publishable_... أو eyJ..."></textarea></div>
+    <div class="note n-warn" style="margin:12px 0">لا تضع هنا مفتاح <b>service_role</b> إطلاقاً. مفتاح anon وحده هو المخصّص للواجهة.</div>
+    <div id="cfgErr"></div>
+    <button class="btn btn-p" style="width:100%;justify-content:center" id="btnCfg">حفظ ومتابعة</button>
+  </div>
+</div>
+
+<!-- ============ الدخول ============ -->
+<div class="authwrap" id="authScreen" hidden>
+  <div class="authbox">
+    <div class="mark" style="margin-bottom:18px">
+      <div class="mark-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg></div>
+      <div><h2 style="margin:0">السجل الصحي</h2><div class="sub" style="margin:0">توثيق ورصد — لا تشخيص</div></div>
+    </div>
+    <div class="switcher">
+      <button id="tabIn" aria-pressed="true">دخول</button>
+      <button id="tabUp" aria-pressed="false">حساب جديد</button>
+    </div>
+    <div class="field" id="nameField" hidden><label class="f" for="auName">الاسم الكامل</label><input class="in" id="auName"></div>
+    <div class="field"><label class="f" for="auEmail">البريد الإلكتروني</label><input class="in" id="auEmail" type="email" dir="ltr" autocomplete="email"></div>
+    <div class="field"><label class="f" for="auPass">كلمة المرور</label><input class="in" id="auPass" type="password" dir="ltr" autocomplete="current-password"></div>
+    <button class="btn btn-p" style="width:100%;justify-content:center;margin-top:6px" id="btnAuth">دخول</button>
+    <div id="authMsg" style="margin-top:12px"></div>
+    <div style="margin-top:14px;text-align:center">
+      <button class="btn-x" id="btnReset" style="color:var(--muted);font-size:calc(12.5px * var(--s))">نسيت كلمة المرور</button>
+    </div>
+    <div class="note n-info" style="margin-top:16px;font-size:calc(12px * var(--s))">
+      بياناتك الصحية معزولة على مستوى قاعدة البيانات. لا يصل إليها طبيب إلا بموافقة صريحة منك، ويمكنك سحبها في أي وقت.
+    </div>
+  </div>
+</div>
+
+<!-- ============ الإقرار ============ -->
+<div class="overlay" id="gate">
+<div class="modal">
+  <h2 style="font-size:calc(19px * var(--s))">قبل أن تبدأ</h2>
+  <div class="note n-warn" style="margin:14px 0">
+    <b>هذه المنصة توثّق وترصد. لا تشخّص ولا تصف علاجاً ولا تعدّله.</b>
+  </div>
+  <ul style="font-size:calc(13.5px * var(--s));line-height:1.9;padding-inline-start:18px;color:var(--ink-2)">
+    <li><b>لا توقف أي دواء موصوف دون طبيبك المعالج.</b> هذا أخطر ما يحدث أثناء أي نظام غذائي مقيّد، وقد أدّى إلى وفيات موثّقة.</li>
+    <li>الأنظمة الغذائية التي تَعِد بالاستغناء عن أدوية السكري أو القلب أو مضادات التجلط لا تستند إلى أساس علمي.</li>
+    <li>أدخل نتائج التحاليل من مخبر معتمد فقط.</li>
+    <li>عند ألم صدري أو ضيق تنفّس أو إغماء: اتصل بالإسعاف فوراً ولا تنتظر المنصة.</li>
+    <li>القيم الغذائية تقديرية وتختلف حسب الطبخ.</li>
+  </ul>
+  <button class="btn btn-p" style="width:100%;margin-top:18px;justify-content:center" id="btnConsent">أقرّ بذلك وأتابع</button>
+</div>
+</div>
+
+<!-- ============ التطبيق ============ -->
+<div class="shell" id="app" hidden>
+<aside class="rail">
+  <div class="brand">
+    <div class="mark">
+      <div class="mark-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg></div>
+      <div><h1>السجل الصحي</h1><p>توثيق شخصي مُرقّم</p></div>
+    </div>
+  </div>
+  <nav id="nav">
+    <button class="tab" data-v="today" aria-current="true"><span class="ico">◉</span><span>اليوم</span></button>
+    <button class="tab" data-v="food"><span class="ico">◍</span><span>الأكل</span></button>
+    <button class="tab" data-v="sym"><span class="ico">◐</span><span>الأعراض</span></button>
+    <button class="tab" data-v="labs"><span class="ico">◈</span><span>التحاليل</span></button>
+    <button class="tab" data-v="meds"><span class="ico">◇</span><span>الأدوية</span></button>
+    <button class="tab" data-v="files"><span class="ico">▤</span><span>الملفات</span></button>
+    <button class="tab" data-v="report"><span class="ico">▦</span><span>التقارير</span></button>
+    <button class="tab" data-v="alerts"><span class="ico">△</span><span>التنبيهات</span><span class="count" id="alertCount" hidden>0</span></button>
+    <button class="tab" data-v="account"><span class="ico">◎</span><span>حسابي</span></button>
+  </nav>
+  <div class="rail-foot">
+    <div class="who">
+      <div class="avatar" id="avatar">؟</div>
+      <div style="flex:1;min-width:0"><div class="nm" id="whoName">—</div><div class="rl" id="whoRole">—</div></div>
+    </div>
+    <div class="syncbar"><span class="dot" id="dot"></span><span id="syncTxt">متصل</span></div>
+    <div class="sizer" style="margin-top:10px">
+      <span>حجم الخط</span>
+      <button data-scale="1">ا</button><button data-scale="1.10" aria-pressed="true">اا</button><button data-scale="1.24">ااا</button>
+    </div>
+  </div>
+</aside>
+
+<main>
+<!-- اليوم -->
+<section class="view on" id="v-today">
+  <div class="phead"><div><div class="eyebrow">لوحة اليوم</div><h2 id="todayTitle">اليوم</h2><div class="sub" id="todaySub">—</div></div></div>
+  <div class="sizer sizer-page noprint" style="margin-bottom:14px">
+    <span>حجم الخط</span>
+    <button data-scale="1">ا</button><button data-scale="1.10" aria-pressed="true">اا</button><button data-scale="1.24">ااا</button>
+  </div>
+  <div class="row c4" id="kpis"></div>
+  <div class="card" style="margin-top:14px">
+    <h3>تسجيل سريع</h3><p class="hint">أدخل ما تعرفه الآن. الحقول الفارغة تُتجاهل.</p>
+    <div class="row c4">
+      <div><label class="f" for="qWeight">الوزن (كغ)</label><input class="in num" id="qWeight" type="number" step="0.1" inputmode="decimal"></div>
+      <div><label class="f" for="qSys">ضغط انقباضي</label><input class="in num" id="qSys" type="number" inputmode="numeric"></div>
+      <div><label class="f" for="qDia">ضغط انبساطي</label><input class="in num" id="qDia" type="number" inputmode="numeric"></div>
+      <div><label class="f" for="qGlu">سكر لحظي</label><input class="in num" id="qGlu" type="number" inputmode="numeric"></div>
+    </div>
+    <div class="row c3" style="margin-top:12px">
+      <div><label class="f" for="qWater">ماء (لتر)</label><input class="in num" id="qWater" type="number" step="0.1" inputmode="decimal"></div>
+      <div><label class="f" for="qSleep">نوم (ساعة)</label><input class="in num" id="qSleep" type="number" step="0.5" inputmode="decimal"></div>
+      <div><label class="f" for="qAct">حركة (دقيقة)</label><input class="in num" id="qAct" type="number" inputmode="numeric"></div>
+    </div>
+    <button class="btn btn-p" style="margin-top:16px" id="btnQuick">حفظ قياسات اليوم</button>
+  </div>
+  <div class="row c2" style="margin-top:14px">
+    <div class="card"><h3>الوزن</h3><div class="chart"><canvas id="cW"></canvas></div></div>
+    <div class="card"><h3>السكر الصائم</h3><div class="chart"><canvas id="cS"></canvas></div></div>
+  </div>
+</section>
+
+<!-- الأكل -->
+<section class="view" id="v-food">
+  <div class="phead"><div><div class="eyebrow">لائحة الطعام</div><h2>الأكل</h2><div class="sub">اضغط الطبق ليُضاف، ثم عدّل الكمية.</div></div></div>
+  <div class="card">
+    <label class="f" for="fSearch">ابحث عن طبق</label>
+    <input class="in" id="fSearch" placeholder="كسكسي، حمص، مقلوبة، تمر…" autocomplete="off">
+    <div class="chips" id="fCats"></div>
+    <div class="foodgrid" id="fGrid"></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><h3>صحن اليوم</h3><p class="hint" style="margin:0">الكمية بالغرام.</p></div>
+      <button class="btn btn-g btn-sm" id="btnRepeat">كرّر آخر وجبة</button>
+    </div>
+    <div id="plate" style="margin-top:14px"><div class="empty">لم تضف شيئاً بعد.</div></div>
+    <div class="totals" id="plateTotals" hidden>
+      <div class="tot"><b id="tKcal">0</b><span>سعرة</span></div>
+      <div class="tot"><b id="tCarb">0</b><span>كربوهيدرات غ</span></div>
+      <div class="tot"><b id="tProt">0</b><span>بروتين غ</span></div>
+      <div class="tot"><b id="tFat">0</b><span>دهون غ</span></div>
+    </div>
+    <div class="note n-info" style="margin-top:14px;font-size:calc(12.5px * var(--s))">القيم تقديرية لكل 100 غرام مطبوخاً وتتغيّر كثيراً حسب الزيت والدسم.</div>
+    <div style="display:flex;gap:9px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-p" id="btnSaveMeal">حفظ الوجبة</button>
+      <button class="btn btn-g" id="btnClearPlate">إفراغ الصحن</button>
+    </div>
+  </div>
+  <div class="card"><h3>وجبات محفوظة</h3><div id="mealHistory" style="margin-top:10px"></div></div>
+</section>
+
+<!-- الأعراض -->
+<section class="view" id="v-sym">
+  <div class="phead"><div><div class="eyebrow">المتابعة</div><h2>الأعراض</h2><div class="sub">اترك ما لا تشعر به على صفر.</div></div></div>
+  <div class="note n-warn">ألم صدري أو ضيق تنفّس أو إغماء بدرجة عالية: اتصل بالإسعاف الآن.</div>
+  <div class="card" style="margin-top:14px"><div id="symList"></div></div>
+  <div class="card"><h3>ملاحظة حرة</h3><textarea class="in" id="symNote" placeholder="أي شيء لا تجده في القائمة…"></textarea></div>
+  <div style="margin-top:14px"><button class="btn btn-p" id="btnSaveSym">حفظ أعراض اليوم</button></div>
+  <div class="card"><h3>آخر التسجيلات</h3><div id="symHistory" style="margin-top:10px"></div></div>
+</section>
+
+<!-- التحاليل -->
+<section class="view" id="v-labs">
+  <div class="phead">
+    <div><div class="eyebrow">المخبر</div><h2>التحاليل</h2><div class="sub">خط الأساس أولاً، ثم كل تحليل جديد يُقارن به.</div></div>
+    <div class="chips noprint" style="margin:0">
+      <button class="chip" id="tabBase" aria-pressed="true">خط الأساس</button>
+      <button class="chip" id="tabNew">تحليل جديد</button>
+    </div>
+  </div>
+  <div id="paneBase">
+    <div class="card">
+      <h3>معلوماتك</h3><p class="hint">العمر والجنس يغيّران المجالات المرجعية</p>
+      <div class="row c3">
+        <div><label class="f" for="pName">الاسم</label><input class="in" id="pName"></div>
+        <div><label class="f" for="pYear">سنة الميلاد</label><input class="in num" id="pYear" type="number" inputmode="numeric" placeholder="1980"></div>
+        <div><label class="f" for="pSex">الجنس</label><select class="in" id="pSex"><option value="">—</option><option value="m">ذكر</option><option value="f">أنثى</option></select></div>
+      </div>
+      <div class="row c4" style="margin-top:12px">
+        <div><label class="f" for="bW">الوزن (كغ)</label><input class="in num" id="bW" type="number" step="0.1" inputmode="decimal"></div>
+        <div><label class="f" for="bH">الطول (سم)</label><input class="in num" id="bH" type="number" step="0.1" inputmode="decimal"></div>
+        <div><label class="f" for="bWa">محيط الخصر</label><input class="in num" id="bWa" type="number" step="0.1" inputmode="decimal"></div>
+        <div><label class="f" for="bBmi">كتلة الجسم</label><input class="in num" id="bBmi" readonly style="background:var(--line-2)"></div>
+      </div>
+      <div class="row c4" style="margin-top:12px">
+        <div><label class="f" for="bSys">ضغط انقباضي</label><input class="in num" id="bSys" type="number" inputmode="numeric"></div>
+        <div><label class="f" for="bDia">ضغط انبساطي</label><input class="in num" id="bDia" type="number" inputmode="numeric"></div>
+        <div><label class="f" for="bHr">نبض</label><input class="in num" id="bHr" type="number" inputmode="numeric"></div>
+        <div><label class="f" for="bDiet">تاريخ بدء النظام الغذائي</label><input class="in" id="bDiet" type="date"></div>
+      </div>
+      <div style="display:grid;gap:12px;margin-top:12px">
+        <div><label class="f" for="hDis">أمراض مزمنة</label><textarea class="in" id="hDis" rows="2"></textarea></div>
+        <div><label class="f" for="hAll">حساسية</label><input class="in" id="hAll"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div><h3>نتائج خط الأساس</h3><p class="hint" style="margin:0">من تقرير عمره أقل من شهر</p></div>
+        <button class="btn btn-g btn-sm noprint" id="btnPasteBase">لصق تقرير المخبر</button>
+      </div>
+      <div class="labhead" style="margin-top:14px"><span>التحليل</span><span style="text-align:center">القيمة</span><span class="refcol">موقعك من المجال</span><span class="refcol" style="text-align:center">المرجع</span></div>
+      <div id="baseRows"></div>
+      <div style="margin-top:10px"><button class="chip" id="moreBase">إظهار كل التحاليل</button></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn btn-p" id="btnSaveBase">حفظ خط الأساس</button></div>
+  </div>
+  <div id="paneNew" hidden>
+    <div class="card">
+      <div class="row c3">
+        <div><label class="f" for="fuDate">تاريخ التحليل</label><input class="in" id="fuDate" type="date"></div>
+        <div><label class="f" for="fuLab">المخبر</label><input class="in" id="fuLab"></div>
+        <div><label class="f" for="fuNum">رقم التقرير</label><input class="in" id="fuNum"></div>
+      </div>
+      <div style="margin-top:12px"><button class="btn btn-g btn-sm noprint" id="btnPasteNew">لصق تقرير المخبر</button></div>
+      <div class="labhead" style="margin-top:16px"><span>التحليل</span><span style="text-align:center">القيمة</span><span class="refcol">مقارنة بالأساس</span><span class="refcol" style="text-align:center">المرجع</span></div>
+      <div id="newRows"></div>
+      <div style="margin-top:10px"><button class="chip" id="moreNew">إظهار كل التحاليل</button></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn btn-p" id="btnSaveNew">حفظ التحليل</button></div>
+    <div class="card"><h3>التحاليل المسجّلة</h3><div id="fuHistory" style="margin-top:10px"></div></div>
+  </div>
+</section>
+
+<!-- الأدوية -->
+<section class="view" id="v-meds">
+  <div class="phead"><div><div class="eyebrow">العلاج</div><h2>الأدوية والمكملات</h2><div class="sub">وثّق ما تأخذه فعلاً.</div></div></div>
+  <div class="note n-bad">لا توقف دواءً ولا تغيّر جرعة اعتماداً على هذه المنصة. القرار لطبيبك وحده.</div>
+  <div class="card" style="margin-top:14px">
+    <h3>قائمتك</h3><div id="medList" style="margin-top:10px"></div>
+    <button class="btn btn-g btn-sm" style="margin-top:10px" id="btnAddMed">+ دواء</button>
+  </div>
+</section>
+
+<!-- الملفات -->
+<section class="view" id="v-files">
+  <div class="phead"><div><div class="eyebrow">الأرشيف</div><h2>الملفات</h2><div class="sub">صور تقارير وملفات PDF مع بصمة رقمية.</div></div></div>
+  <div class="note n-warn">
+    <b>ما يفعله الفحص وما لا يفعله.</b> نقرأ بيانات الملف الداخلية ونحسب بصمته، فتظهر <em>مؤشرات</em> على التعديل. هذا <b>لا يُثبت</b> أن ملفاً غير مزوّر — التأكيد الوحيد الموثوق هو مطابقة النتيجة مع المخبر نفسه.
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="drop" id="drop" tabindex="0" role="button">
+      <div style="font-size:calc(26px * var(--s));color:var(--muted)">▤</div>
+      <div style="font-weight:600;margin-top:6px">اسحب الملفات هنا أو اضغط للاختيار</div>
+      <div style="font-size:calc(12.5px * var(--s));color:var(--muted);margin-top:3px">صور أو PDF — تُرفع مشفّرة إلى حسابك</div>
+      <input type="file" id="fileInput" accept="image/*,application/pdf" multiple hidden>
+    </div>
+    <div class="row c2" style="margin-top:12px">
+      <div><label class="f" for="fKind">نوع الملف</label><select class="in" id="fKind"><option value="lab">تقرير تحاليل</option><option value="imaging">صورة أشعة</option><option value="prescription">وصفة طبية</option><option value="report">تقرير طبيب</option></select></div>
+      <div><label class="f" for="fDate">تاريخ الوثيقة</label><input class="in" id="fDate" type="date"></div>
+    </div>
+  </div>
+  <div class="card"><h3>الملفات المرفوعة</h3><div id="fileList" style="margin-top:12px"><div class="empty">لا ملفات بعد.</div></div></div>
+  <div class="card noprint">
+    <h3>تحقّق من بصمة ملف</h3><p class="hint">يكشف أي تغيير طرأ على الملف بعد رفعه.</p>
+    <input type="file" id="verifyInput" class="in" accept="image/*,application/pdf">
+    <div id="verifyOut" style="margin-top:12px"></div>
+  </div>
+</section>
+
+<!-- التقارير -->
+<section class="view" id="v-report">
+  <div class="phead">
+    <div><div class="eyebrow">للطبيب</div><h2>التقارير</h2><div class="sub">صفحة واحدة تلخّص المسار.</div></div>
+    <button class="btn btn-g btn-sm noprint" onclick="window.print()">طباعة / PDF</button>
+  </div>
+  <div class="row c2">
+    <div class="card"><h3>الوزن</h3><div class="chart"><canvas id="rW"></canvas></div></div>
+    <div class="card"><h3>السكر الصائم</h3><div class="chart"><canvas id="rS"></canvas></div></div>
+  </div>
+  <div class="row c2" style="margin-top:14px">
+    <div class="card"><h3>وظيفة الكلى (eGFR)</h3><div class="chart"><canvas id="rE"></canvas></div></div>
+    <div class="card"><h3>ضغط الدم</h3><div class="chart"><canvas id="rB"></canvas></div></div>
+  </div>
+  <div class="card"><h3>مقارنة التحاليل</h3>
+    <div style="overflow-x:auto;margin-top:12px">
+      <table><thead><tr><th>التحليل</th><th>الأساس</th><th>آخر نتيجة</th><th>الفرق</th><th>الموقع</th><th>التقييم</th></tr></thead><tbody id="cmpBody"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<!-- التنبيهات -->
+<section class="view" id="v-alerts">
+  <div class="phead"><div><div class="eyebrow">مراقبة آلية</div><h2>التنبيهات</h2><div class="sub">قواعد على القيم المسجّلة. ليست تشخيصاً.</div></div></div>
+  <div id="alertBox"></div>
+</section>
+
+<!-- الحساب -->
+<section class="view" id="v-account">
+  <div class="phead"><div><div class="eyebrow">الإعدادات</div><h2>حسابي</h2></div></div>
+  <div class="card">
+    <h3>الأطباء المصرَّح لهم</h3>
+    <p class="hint">من وافقت على اطّلاعه على بياناتك. السحب فوري.</p>
+    <div id="linkList"></div>
+  </div>
+  <div class="card">
+    <h3>بياناتك</h3>
+    <p class="hint">تصدير كامل بصيغة JSON، أو حذف الحساب نهائياً.</p>
+    <div style="display:flex;gap:9px;flex-wrap:wrap">
+      <button class="btn btn-g" id="btnExport">تصدير بياناتي</button>
+      <button class="btn btn-g" id="btnSignout">تسجيل الخروج</button>
+    </div>
+  </div>
+</section>
+</main>
+</div>
+
+<div id="toast"></div>
+
+<div class="overlay" id="pasteModal">
+<div class="modal">
+  <h2 style="font-size:calc(19px * var(--s))">لصق تقرير المخبر</h2>
+  <p style="font-size:calc(13.5px * var(--s));color:var(--ink-2);margin:6px 0 12px">الصق النص كما هو. راجع الأرقام بعد الالتقاط.</p>
+  <textarea class="in" id="pasteText" rows="9" placeholder="Glucose 108 mg/dL&#10;HbA1c 6.2 %&#10;Creatinine 1.05"></textarea>
+  <div style="display:flex;gap:9px;margin-top:14px">
+    <button class="btn btn-p" id="btnDoParse">التقاط الأرقام</button>
+    <button class="btn btn-g" onclick="document.getElementById('pasteModal').classList.remove('on')">إلغاء</button>
+  </div>
+  <div id="parseOut" style="margin-top:12px"></div>
+</div>
+</div>
+
+<script>
+"use strict";
+console.log("VERSION_FIXE_2026 — app-cloud محدّث");
+
+const TESTS = [
+ {id:'fbs',   n:'سكر صائم',        en:'FBS / Glucose', u:'mg/dL', lo:70,  hi:100, cl:50,  ch:300, core:1, keys:['glucose','fbs','sucre','سكر','جلوكوز','غليسيمي']},
+ {id:'hba1c', n:'الخضاب السكري',   en:'HbA1c',         u:'%',     lo:4,   hi:5.7, ch:10,  core:1, keys:['hba1c','a1c','خضاب']},
+ {id:'creat', n:'الكرياتينين',      en:'Creatinine',    u:'mg/dL', lo:0.7, hi:1.3, ch:2,   core:1, keys:['creatinine','creat','كرياتينين','كرياتنين']},
+ {id:'egfr',  n:'ترشيح الكلى',     en:'eGFR',          u:'mL/min',lo:90,  hi:140, cl:60,  core:1, keys:['egfr','gfr','ترشيح']},
+ {id:'alt',   n:'إنزيم الكبد ALT',  en:'ALT / SGPT',    u:'U/L',   lo:5,   hi:40,  ch:120, core:1, keys:['alt','sgpt','alat']},
+ {id:'ast',   n:'إنزيم الكبد AST',  en:'AST / SGOT',    u:'U/L',   lo:5,   hi:40,  ch:120, core:0, keys:['ast','sgot','asat']},
+ {id:'chol',  n:'الكوليسترول الكلي',en:'Cholesterol',  u:'mg/dL', lo:120, hi:200, ch:300, core:1, keys:['cholesterol','chol','كوليسترول']},
+ {id:'ldl',   n:'الكوليسترول الضار',en:'LDL',          u:'mg/dL', lo:40,  hi:100, ch:190, core:1, keys:['ldl','الضار']},
+ {id:'hdl',   n:'الكوليسترول النافع',en:'HDL',         u:'mg/dL', lo:40,  hi:80,  cl:30,  core:1, keys:['hdl','النافع']},
+ {id:'tg',    n:'الدهون الثلاثية',  en:'Triglycerides', u:'mg/dL', lo:50,  hi:150, ch:500, core:1, keys:['triglyc','tg','ثلاثية']},
+ {id:'hb',    n:'الهيموغلوبين',     en:'Hemoglobin',    u:'g/dL',  lo:12,  hi:17.5,cl:8,   core:1, keys:['hemoglobin','hgb','hb','هيموغلوبين','هيموجلوبين']},
+ {id:'wbc',   n:'الكريات البيضاء',  en:'WBC',           u:'K/µL',  lo:4,   hi:11,  core:0, keys:['wbc','leuco','بيضاء']},
+ {id:'plt',   n:'الصفائح',          en:'Platelets',     u:'K/µL',  lo:150, hi:400, cl:80,  core:0, keys:['platelet','plt','صفائح']},
+ {id:'b12',   n:'فيتامين B12',      en:'Vitamin B12',   u:'pg/mL', lo:200, hi:900, cl:150, core:0, keys:['b12','cobalamin']},
+ {id:'vitd',  n:'فيتامين D',        en:'Vitamin D',     u:'ng/mL', lo:30,  hi:100, cl:20,  core:0, keys:['vitamin d','25-oh','vitd','فيتامين د']},
+ {id:'iron',  n:'الحديد',           en:'Iron',          u:'µg/dL', lo:65,  hi:176, cl:30,  core:0, keys:['iron','fer','حديد']},
+ {id:'ferr',  n:'الفيريتين',        en:'Ferritin',      u:'ng/mL', lo:24,  hi:336, cl:10,  core:0, keys:['ferritin','فيريتين']},
+ {id:'ca',    n:'الكالسيوم',        en:'Calcium',       u:'mg/dL', lo:8.5, hi:10.5,core:0, keys:['calcium','كالسيوم']},
+ {id:'k',     n:'البوتاسيوم',       en:'Potassium',     u:'mEq/L', lo:3.5, hi:5.1, cl:2.8, ch:6, core:0, keys:['potassium','kaliem','بوتاسيوم']},
+ {id:'na',    n:'الصوديوم',         en:'Sodium',        u:'mEq/L', lo:135, hi:145, core:0, keys:['sodium','صوديوم']},
+ {id:'ua',    n:'حمض البوليك',      en:'Uric acid',     u:'mg/dL', lo:3.5, hi:7.2, ch:9,   core:0, keys:['uric','urate','بوليك','يوريك']},
+ {id:'tsh',   n:'هرمون الغدة TSH',  en:'TSH',           u:'mIU/L', lo:0.4, hi:4.0, core:0, keys:['tsh','غدة']}
+];
+
+const SYMPTOMS = [
+ {id:'nausea',n:'غثيان أو قيء'},{id:'consti',n:'إمساك'},{id:'diarr',n:'إسهال'},
+ {id:'dizzy',n:'دوخة أو إغماء',red:8},{id:'chest',n:'ألم في الصدر',red:6},{id:'breath',n:'ضيق تنفّس',red:6},
+ {id:'fatigue',n:'تعب عام'},{id:'darkUrine',n:'بول داكن',red:5},{id:'cramps',n:'تشنّج عضلي'},
+ {id:'headache',n:'صداع'},{id:'swelling',n:'انتفاخ القدمين',red:7},{id:'rash',n:'طفح جلدي'},
+ {id:'mood',n:'تغيّر مزاج'},{id:'sleepy',n:'اضطراب نوم'}
+];
+
+const FOODS = [
+ {n:'كسكسي بالخضار',c:'تونسي',k:150,cb:24,p:5,f:4},
+ {n:'كسكسي باللحم',c:'تونسي',k:190,cb:22,p:9,f:7},
+ {n:'مسفوف',c:'تونسي',k:300,cb:45,p:7,f:10},
+ {n:'بريك بالبيض',c:'تونسي',k:280,cb:25,p:8,f:17},
+ {n:'لبلابي',c:'تونسي',k:130,cb:17,p:5,f:5},
+ {n:'شكشوكة',c:'تونسي',k:110,cb:7,p:5,f:7},
+ {n:'سلاطة مشوية',c:'تونسي',k:90,cb:6,p:2,f:6},
+ {n:'مرقة بالحوت',c:'تونسي',k:120,cb:8,p:11,f:5},
+ {n:'طاجين تونسي',c:'تونسي',k:210,cb:8,p:15,f:13},
+ {n:'عجّة',c:'تونسي',k:190,cb:4,p:13,f:14},
+ {n:'مقرونة بالصلصة',c:'تونسي',k:165,cb:24,p:6,f:5},
+ {n:'كفتاجي',c:'تونسي',k:200,cb:15,p:5,f:13},
+ {n:'ملوخية تونسية',c:'تونسي',k:150,cb:9,p:10,f:9},
+ {n:'هريسة',c:'تونسي',k:190,cb:12,p:4,f:14},
+ {n:'بسيسة',c:'تونسي',k:400,cb:55,p:10,f:15},
+ {n:'مقروض',c:'حلويات',k:380,cb:55,p:4,f:16},
+ {n:'زلابية',c:'حلويات',k:400,cb:58,p:3,f:18},
+
+ {n:'حمّص بالطحينة',c:'شامي',k:170,cb:14,p:8,f:9},
+ {n:'فول مدمّس',c:'شامي',k:110,cb:16,p:8,f:2},
+ {n:'فلافل / طعمية',c:'شامي',k:330,cb:32,p:13,f:18},
+ {n:'تبّولة',c:'شامي',k:120,cb:12,p:3,f:7},
+ {n:'فتّوش',c:'شامي',k:110,cb:12,p:3,f:6},
+ {n:'ورق عنب محشي',c:'شامي',k:130,cb:18,p:3,f:6},
+ {n:'مجدّرة',c:'شامي',k:140,cb:22,p:6,f:4},
+ {n:'مقلوبة',c:'شامي',k:170,cb:22,p:8,f:6},
+ {n:'مسخّن',c:'شامي',k:220,cb:25,p:12,f:9},
+ {n:'منسف',c:'شامي',k:200,cb:18,p:14,f:8},
+ {n:'كبّة مقلية',c:'شامي',k:300,cb:25,p:12,f:17},
+ {n:'شاورما دجاج',c:'شامي',k:190,cb:5,p:20,f:10},
+ {n:'شاورما لحم',c:'شامي',k:250,cb:6,p:18,f:17},
+ {n:'شيش طاووق',c:'شامي',k:165,cb:2,p:25,f:6},
+ {n:'كباب مشوي',c:'شامي',k:250,cb:2,p:20,f:18},
+
+ {n:'كشري',c:'مصري',k:150,cb:28,p:5,f:2},
+ {n:'ملوخية مصرية',c:'مصري',k:80,cb:6,p:5,f:4},
+ {n:'محشي كرنب',c:'مصري',k:140,cb:20,p:4,f:5},
+
+ {n:'كبسة بالدجاج',c:'خليجي',k:190,cb:26,p:9,f:6},
+ {n:'مندي لحم',c:'خليجي',k:210,cb:24,p:12,f:8},
+ {n:'هريس',c:'خليجي',k:150,cb:20,p:8,f:4},
+ {n:'ثريد',c:'خليجي',k:170,cb:20,p:9,f:6},
+ {n:'مطبّق',c:'خليجي',k:300,cb:35,p:8,f:14},
+ {n:'لقيمات',c:'حلويات',k:380,cb:50,p:4,f:18},
+
+ {n:'طاجين مغربي بالدجاج',c:'مغربي',k:150,cb:8,p:15,f:7},
+ {n:'حريرة',c:'مغربي',k:90,cb:12,p:4,f:3},
+ {n:'رفيسة',c:'مغربي',k:220,cb:28,p:12,f:7},
+ {n:'بغرير',c:'مغربي',k:200,cb:38,p:6,f:3},
+
+ {n:'كنافة',c:'حلويات',k:350,cb:40,p:6,f:18},
+ {n:'بقلاوة',c:'حلويات',k:430,cb:50,p:6,f:23},
+ {n:'بسبوسة',c:'حلويات',k:380,cb:50,p:5,f:17},
+ {n:'قطايف',c:'حلويات',k:330,cb:45,p:6,f:14},
+ {n:'مهلبية',c:'حلويات',k:120,cb:20,p:3,f:3},
+ {n:'حلاوة طحينية',c:'حلويات',k:500,cb:45,p:12,f:32},
+
+ {n:'خبز عربي',c:'نشويات',k:275,cb:55,p:9,f:1.5},
+ {n:'كسرة / خبز طابونة',c:'نشويات',k:265,cb:53,p:8,f:2},
+ {n:'أرز أبيض مطبوخ',c:'نشويات',k:130,cb:28,p:2.7,f:.3},
+ {n:'فريكة',c:'نشويات',k:130,cb:20,p:6,f:3},
+ {n:'بطاطا مقلية',c:'نشويات',k:310,cb:40,p:3.5,f:15},
+ {n:'مكرونة مسلوقة',c:'نشويات',k:158,cb:31,p:6,f:.9},
+
+ {n:'دجاج مشوي بلا جلد',c:'بروتين',k:165,cb:0,p:31,f:3.6},
+ {n:'لحم غنم مشوي',c:'بروتين',k:250,cb:0,p:25,f:16},
+ {n:'لحم بقري مشوي',c:'بروتين',k:215,cb:0,p:26,f:12},
+ {n:'سمك مشوي',c:'بروتين',k:130,cb:0,p:22,f:4},
+ {n:'سمك مقلي',c:'بروتين',k:220,cb:8,p:20,f:12},
+ {n:'تونة معلّبة',c:'بروتين',k:130,cb:0,p:28,f:1},
+ {n:'بيض مسلوق',c:'بروتين',k:155,cb:1,p:13,f:11},
+ {n:'كبد مطبوخ',c:'بروتين',k:135,cb:4,p:20,f:4},
+
+ {n:'سلطة خضراء',c:'خضار',k:25,cb:4,p:1.5,f:.3},
+ {n:'شوربة خضار',c:'خضار',k:45,cb:8,p:2,f:1},
+ {n:'شوربة عدس',c:'خضار',k:110,cb:16,p:6,f:3},
+ {n:'خضار مطبوخ بالزيت',c:'خضار',k:95,cb:9,p:2,f:6},
+
+ {n:'زيت زيتون',c:'دهون',k:884,cb:0,p:0,f:100},
+ {n:'زيتون',c:'دهون',k:145,cb:4,p:1,f:15},
+ {n:'زبدة / سمن',c:'دهون',k:717,cb:0,p:1,f:81},
+ {n:'مكسّرات مشكّلة',c:'دهون',k:600,cb:20,p:18,f:52},
+
+ {n:'لبن رائب',c:'ألبان',k:60,cb:5,p:3.5,f:3},
+ {n:'جبن أبيض',c:'ألبان',k:250,cb:3,p:18,f:19},
+ {n:'حليب كامل الدسم',c:'ألبان',k:61,cb:5,p:3.2,f:3.3},
+
+ {n:'تمر',c:'فواكه',k:280,cb:75,p:2,f:.4},
+ {n:'برتقال',c:'فواكه',k:47,cb:12,p:.9,f:.1},
+ {n:'تفاح',c:'فواكه',k:52,cb:14,p:.3,f:.2},
+ {n:'موز',c:'فواكه',k:89,cb:23,p:1.1,f:.3},
+ {n:'بطيخ',c:'فواكه',k:30,cb:8,p:.6,f:.2},
+
+ {n:'شاي بسكّر',c:'مشروبات',k:40,cb:10,p:0,f:0},
+ {n:'قهوة بلا سكّر',c:'مشروبات',k:2,cb:0,p:.1,f:0},
+ {n:'عصير برتقال طبيعي',c:'مشروبات',k:45,cb:10,p:.7,f:.2},
+ {n:'مشروب غازي',c:'مشروبات',k:42,cb:11,p:0,f:0}
+];
+
+const CATS = ['الكل','تونسي','شامي','مصري','خليجي','مغربي','نشويات','بروتين','خضار','دهون','ألبان','فواكه','حلويات','مشروبات'];
+
+const $  = s=>document.querySelector(s);
+const $$ = s=>[...document.querySelectorAll(s)];
+const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = d=>new Date(d).toLocaleDateString('ar-TN',{day:'2-digit',month:'short',year:'numeric'});
+const num = v=>{const x=parseFloat(String(v).replace(',','.'));return isNaN(x)?null:x;};
+const today = ()=>new Date().toISOString().slice(0,10);
+
+function toast(msg,bad){
+  const t=document.createElement('div');
+  t.className='toast'+(bad?' bad':''); t.textContent=msg;
+  $('#toast').appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},3200);
+}
+function setSync(s){
+  const d=$('#dot'),t=$('#syncTxt'); if(!d) return;
+  d.className='dot'+(s==='busy'?' busy':s==='err'?' err':'');
+  t.textContent = s==='busy'?'جارٍ الحفظ':s==='err'?'تعذّر الحفظ':'متصل';
+}
+function setScale(s){
+  document.documentElement.style.setProperty('--s',s);
+  try{ localStorage.setItem('htScale',s); }catch(e){}
+  $$('[data-scale]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.scale===String(s)));
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-scale]'); if(b) setScale(b.dataset.scale);});
+(function(){ let s; try{s=localStorage.getItem('htScale');}catch(e){}
+  document.documentElement.style.setProperty('--s', s||'1.10'); })();
+
+/* ==================================================================
+   الاتصال بـ Supabase
+   يمكنك وضع القيمتين هنا مباشرة عند النشر، أو تركهما فارغتين
+   فتظهر شاشة إعداد تحفظهما في المتصفّح.
+   ================================================================== */
+/* 
+   CONFIGURATION SUPABASE
+   Pour la production, utilisez des variables d'environnement ou
+   un fichier de configuration externe non versionné.
+*/
+const SUPABASE_URL = "https://hgpjejdgegkavyctezdi.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_JDymJXXih0nYiua6DusJ5Q_W3YJO-Uh";
+
+let sb=null, ME=null, PROFILE=null, RUNTIME_CFG=null;
+
+function getCfg(){
+  if(RUNTIME_CFG) return RUNTIME_CFG;
+  if(SUPABASE_URL && SUPABASE_ANON_KEY) return {url:SUPABASE_URL,key:SUPABASE_ANON_KEY};
+  try{
+    const c=JSON.parse(localStorage.getItem('sbCfg')||'null');
+    if(c&&c.url&&c.key) return c;
+  }catch(e){}
+  return null;
+}
+
+$('#btnCfg').onclick=()=>{
+  let url=$('#cfgUrl').value.trim().replace(/\/+$/,'');
+  const key=$('#cfgKey').value.trim();
+  const err=document.getElementById('cfgErr');
+  err.innerHTML='';
+  if(url && !/^https?:\/\//.test(url)) url='https://'+url;
+  if(!url){ err.innerHTML='<div class="note n-bad">أدخل عنوان المشروع.</div>'; return; }
+  if(!/\.supabase\.(co|in)/.test(url)){
+    err.innerHTML='<div class="note n-bad">العنوان يجب أن ينتهي بـ supabase.co — مثال: https://hgpjejdgegkavyctezdi.supabase.co</div>'; return;
+  }
+  if(key.length<20){
+    err.innerHTML='<div class="note n-bad">المفتاح قصير جداً ('+key.length+' حرف). انسخه كاملاً بأيقونة النسخ من Supabase — لا بالتحديد اليدوي.</div>'; return;
+  }
+  try{
+    localStorage.setItem('sbCfg',JSON.stringify({url,key}));
+  }catch(e){ /* التخزين قد يكون محظوراً — نتابع بالذاكرة */ }
+  err.innerHTML='<div class="note n-ok">جارٍ الاتصال…</div>';
+  // اتصل مباشرة بلا إعادة تحميل — إعادة التحميل كانت تفقد القيمة أحياناً
+  RUNTIME_CFG={url,key};
+  connect();
+};
+
+/* ==================================================================
+   المصادقة
+   ================================================================== */
+let authMode='in';
+$('#tabIn').onclick=()=>{authMode='in';$('#tabIn').setAttribute('aria-pressed','true');$('#tabUp').setAttribute('aria-pressed','false');
+  $('#nameField').hidden=true;$('#btnAuth').textContent='دخول';$('#authMsg').innerHTML='';};
+$('#tabUp').onclick=()=>{authMode='up';$('#tabUp').setAttribute('aria-pressed','true');$('#tabIn').setAttribute('aria-pressed','false');
+  $('#nameField').hidden=false;$('#btnAuth').textContent='إنشاء الحساب';$('#authMsg').innerHTML='';};
+
+function authMsg(html,cls){ $('#authMsg').innerHTML=`<div class="note ${cls||'n-bad'}">${html}</div>`; }
+
+$('#btnAuth').onclick=async()=>{
+  const email=$('#auEmail').value.trim(), pass=$('#auPass').value;
+  if(!email||!pass) return authMsg('أدخل البريد وكلمة المرور.');
+  if(authMode==='up'&&pass.length<8) return authMsg('كلمة المرور يجب أن تكون 8 أحرف على الأقل.');
+  const b=$('#btnAuth'); b.disabled=true; b.innerHTML='<span class="spin"></span>';
+  try{
+    if(authMode==='up'){
+      const {error}=await sb.auth.signUp({email,password:pass,
+        options:{data:{full_name:$('#auName').value.trim()}}});
+      if(error) throw error;
+      authMsg('أُنشئ الحساب. إن طُلب تأكيد البريد فافتح الرسالة المرسلة إليك ثم عد وسجّل الدخول.','n-ok');
+    }else{
+      const {error}=await sb.auth.signInWithPassword({email,password:pass});
+      if(error) throw error;
+    }
+  }catch(e){
+    const m=(e.message||'').toLowerCase();
+    authMsg(m.includes('invalid login') ? 'البريد أو كلمة المرور غير صحيحة.'
+          : m.includes('not confirmed') ? 'لم تُؤكَّد رسالة البريد بعد. افتح الرسالة المرسلة إليك.'
+          : m.includes('already registered') ? 'هذا البريد مسجَّل. جرّب الدخول.'
+          : esc(e.message));
+  }finally{ b.disabled=false; b.textContent = authMode==='up'?'إنشاء الحساب':'دخول'; }
+};
+
+$('#btnReset').onclick=async()=>{
+  const email=$('#auEmail').value.trim();
+  if(!email) return authMsg('اكتب بريدك أولاً ثم اضغط الزر.');
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.href});
+  authMsg(error?esc(error.message):'أُرسل رابط الاستعادة إلى بريدك.', error?'n-bad':'n-ok');
+};
+
+$('#btnSignout').onclick=async()=>{ await sb.auth.signOut(); location.reload(); };
+
+/* ==================================================================
+   الحالة المحلية (مرآة لما في القاعدة)
+   ================================================================== */
+let D={base:null,vitals:[],labs:[],symptoms:[],meds:[],meals:[],docs:[],links:[]};
+let plate=[], symVals={}, showAllBase=false, showAllNew=false;
+const charts={};
+
+async function loadAll(){
+  setSync('busy');
+  const uid=ME.id;
+  const [pr,bs,vt,lr,sy,md,ml,dc,lk] = await Promise.all([
+    sb.from('profiles').select('*').eq('id',uid).maybeSingle(),
+    sb.from('baselines').select('*').eq('subscriber_id',uid).maybeSingle(),
+    sb.from('vitals').select('*').eq('subscriber_id',uid).order('measured_at'),
+    sb.from('lab_reports').select('*, lab_values(test_code,value)').eq('subscriber_id',uid).order('taken_on'),
+    sb.from('symptom_logs').select('*').eq('subscriber_id',uid).order('logged_at',{ascending:false}).limit(30),
+    sb.from('medications').select('*').eq('subscriber_id',uid).order('created_at'),
+    sb.from('meals').select('*').eq('subscriber_id',uid).order('eaten_at',{ascending:false}).limit(30),
+    sb.from('documents').select('*').eq('subscriber_id',uid).order('uploaded_at',{ascending:false}),
+    sb.from('care_links').select('*, clinician:clinician_id(full_name)').eq('subscriber_id',uid)
+  ]);
+  PROFILE=pr.data||{};
+  D.base=bs.data||null;
+  D.vitals=vt.data||[];
+  D.labs=(lr.data||[]).map(r=>({...r,tests:Object.fromEntries((r.lab_values||[]).map(v=>[v.test_code,Number(v.value)]))}));
+  D.symptoms=sy.data||[];
+  D.meds=md.data||[];
+  D.meals=ml.data||[];
+  D.docs=dc.data||[];
+  D.links=lk.data||[];
+  setSync('ok');
+}
+
+const baseTests = ()=> (D.base && D.base.tests) || (D.labs.find(l=>l.is_baseline)||{}).tests || {};
+const followUps = ()=> D.labs.filter(l=>!l.is_baseline);
+
+/* ==================================================================
+   التنقّل
+   ================================================================== */
+function go(v){
+  $$('.view').forEach(s=>s.classList.toggle('on', s.id==='v-'+v));
+  $$('.tab').forEach(b=>b.setAttribute('aria-current', b.dataset.v===v?'true':'false'));
+  if(v==='report') drawReport();
+  if(v==='alerts') renderAlerts();
+  if(v==='account') renderLinks();
+  window.scrollTo({top:0});
+}
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('.tab'); if(b) go(b.dataset.v);});
+
+/* ==================================================================
+   المقياس المرجعي
+   ================================================================== */
+function gauge(t,val,ghost){
+  const span=(t.hi-t.lo)||1, min=t.lo-span*0.8, max=t.hi+span*0.8;
+  const pos=v=>Math.max(0,Math.min(100,((v-min)/(max-min))*100));
+  let h=`<div class="gauge"><div class="track"></div><div class="band" style="inset-inline-start:${pos(t.lo)}%;width:${pos(t.hi)-pos(t.lo)}%"></div>`;
+  if(ghost!=null) h+=`<div class="ghost" style="inset-inline-start:${pos(ghost)}%"></div>`;
+  if(val!=null){const st=state(t,val);h+=`<div class="pin ${st==='bad'?'out':st==='warn'?'warn':''}" style="inset-inline-start:${pos(val)}%"></div>`;}
+  return h+'</div>';
+}
+function state(t,v){
+  if(v==null) return '';
+  if((t.cl!=null&&v<t.cl)||(t.ch!=null&&v>t.ch)) return 'bad';
+  if(v<t.lo||v>t.hi) return 'warn';
+  return 'ok';
+}
+const stateLabel=s=>s==='bad'?'حرج':s==='warn'?'خارج المجال':s==='ok'?'ضمن المجال':'—';
+const cls=s=>s==='bad'?'t-bad':s==='warn'?'t-warn':s==='ok'?'t-ok':'t-neutral';
+
+/* ==================================================================
+   التحاليل
+   ================================================================== */
+function labRows(target,which){
+  const all=which==='base'?showAllBase:showAllNew;
+  const bt=baseTests();
+  target.innerHTML=TESTS.filter(t=>all||t.core).map(t=>{
+    const cur = which==='base' ? bt[t.id] : null;
+    return `<div class="lab">
+      <div class="nm">${esc(t.n)}<small>${esc(t.en)} · ${esc(t.u)}</small></div>
+      <input class="in ${which}-v" data-t="${t.id}" inputmode="decimal" value="${cur??''}" placeholder="—" aria-label="${esc(t.n)}">
+      <div class="refcol" data-g="${which}-${t.id}">${gauge(t,cur??null,which==='new'?bt[t.id]:null)}</div>
+      <div class="refcol num" style="text-align:center;font-size:calc(12px * var(--s));color:var(--muted)">${t.lo}–${t.hi}</div>
+    </div>`;}).join('');
+  target.oninput=e=>{
+    const i=e.target.closest('input'); if(!i) return;
+    const t=TESTS.find(x=>x.id===i.dataset.t);
+    const cell=target.querySelector(`[data-g="${which}-${t.id}"]`);
+    if(cell) cell.innerHTML=gauge(t,num(i.value),which==='new'?baseTests()[t.id]:null);
+  };
+}
+const readLabs=sel=>{const o={};$$(sel).forEach(i=>{const v=num(i.value);if(v!=null)o[i.dataset.t]=v;});return o;};
+
+$('#moreBase').onclick=()=>{showAllBase=!showAllBase;$('#moreBase').textContent=showAllBase?'إظهار الأساسية فقط':'إظهار كل التحاليل';labRows($('#baseRows'),'base');};
+$('#moreNew').onclick=()=>{showAllNew=!showAllNew;$('#moreNew').textContent=showAllNew?'إظهار الأساسية فقط':'إظهار كل التحاليل';labRows($('#newRows'),'new');};
+$('#tabBase').onclick=()=>{$('#paneBase').hidden=false;$('#paneNew').hidden=true;$('#tabBase').setAttribute('aria-pressed','true');$('#tabNew').setAttribute('aria-pressed','false');};
+$('#tabNew').onclick=()=>{$('#paneBase').hidden=true;$('#paneNew').hidden=false;$('#tabNew').setAttribute('aria-pressed','true');$('#tabBase').setAttribute('aria-pressed','false');labRows($('#newRows'),'new');};
+
+function bmi(){const w=num($('#bW').value),h=num($('#bH').value);$('#bBmi').value=(w&&h)?(w/((h/100)**2)).toFixed(1):'';}
+$('#bW').oninput=bmi; $('#bH').oninput=bmi;
+
+async function saveReport({taken_on,lab_name,report_no,is_baseline,tests}){
+  const {data:rep,error:e1}=await sb.from('lab_reports')
+    .insert({subscriber_id:ME.id,taken_on,lab_name,report_no,is_baseline}).select().single();
+  if(e1) throw e1;
+  const rows=Object.entries(tests).map(([test_code,value])=>({report_id:rep.id,test_code,value}));
+  if(rows.length){
+    const {error:e2}=await sb.from('lab_values').insert(rows);
+    if(e2) throw e2;
+  }
+  return rep;
+}
+
+$('#btnSaveBase').onclick=async()=>{
+  const b=$('#btnSaveBase'); b.disabled=true; setSync('busy');
+  try{
+    await sb.from('profiles').update({
+      full_name:$('#pName').value.trim()||null,
+      birth_year:num($('#pYear').value),
+      sex:$('#pSex').value||null
+    }).eq('id',ME.id);
+
+    const {error}=await sb.from('baselines').upsert({
+      subscriber_id:ME.id, recorded_on:today(),
+      height_cm:num($('#bH').value), weight_kg:num($('#bW').value), waist_cm:num($('#bWa').value),
+      bp_sys:num($('#bSys').value), bp_dia:num($('#bDia').value), hr:num($('#bHr').value),
+      conditions:$('#hDis').value||null, allergies:$('#hAll').value||null,
+      diet_started_on:$('#bDiet').value||null
+    });
+    if(error) throw error;
+
+    const tests=readLabs('.base-v');
+    if(Object.keys(tests).length){
+      const old=D.labs.find(l=>l.is_baseline);
+      if(old) await sb.from('lab_reports').delete().eq('id',old.id);
+      await saveReport({taken_on:today(),lab_name:'خط الأساس',report_no:null,is_baseline:true,tests});
+    }
+    await loadAll(); renderAll(); toast('حُفظ خط الأساس');
+  }catch(e){ setSync('err'); toast('تعذّر الحفظ: '+(e.message||e),true); }
+  finally{ b.disabled=false; }
+};
+
+$('#btnSaveNew').onclick=async()=>{
+  const tests=readLabs('.new-v');
+  if(!Object.keys(tests).length) return toast('أدخل نتيجة واحدة على الأقل',true);
+  const b=$('#btnSaveNew'); b.disabled=true; setSync('busy');
+  try{
+    await saveReport({taken_on:$('#fuDate').value||today(),lab_name:$('#fuLab').value||null,
+      report_no:$('#fuNum').value||null,is_baseline:false,tests});
+    $$('.new-v').forEach(i=>i.value='');
+    await loadAll(); renderAll(); labRows($('#newRows'),'new'); toast('حُفظ التحليل');
+  }catch(e){ setSync('err'); toast('تعذّر الحفظ: '+(e.message||e),true); }
+  finally{ b.disabled=false; }
+};
+
+/* لصق تقرير المخبر */
+let pasteTarget='base';
+$('#btnPasteBase').onclick=()=>{pasteTarget='base';$('#pasteText').value='';$('#parseOut').innerHTML='';$('#pasteModal').classList.add('on');};
+$('#btnPasteNew').onclick=()=>{pasteTarget='new';$('#pasteText').value='';$('#parseOut').innerHTML='';$('#pasteModal').classList.add('on');};
+$('#btnDoParse').onclick=()=>{
+  const found=[];
+  $('#pasteText').value.split(/\n+/).forEach(line=>{
+    const low=line.toLowerCase();
+    for(const t of TESTS){
+      if(t.keys.some(k=>low.includes(k))){
+        const m=line.match(/(\d+[.,]?\d*)/);
+        if(m){const v=num(m[1]); if(v!=null&&!found.some(f=>f.id===t.id)) found.push({id:t.id,n:t.n,v});}
+        break;
+      }
+    }
+  });
+  if(!found.length) return $('#parseOut').innerHTML='<div class="note n-warn">لم نتعرّف على أي تحليل. يجب أن يحوي السطر اسم التحليل والرقم معاً.</div>';
+  if(pasteTarget==='base'&&!showAllBase){showAllBase=true;labRows($('#baseRows'),'base');}
+  if(pasteTarget==='new'&&!showAllNew){showAllNew=true;labRows($('#newRows'),'new');}
+  found.forEach(f=>{const i=document.querySelector(`.${pasteTarget}-v[data-t="${f.id}"]`);
+    if(i){i.value=f.v;i.dispatchEvent(new Event('input',{bubbles:true}));}});
+  $('#parseOut').innerHTML=`<div class="note n-ok">التُقطت ${found.length} قيمة. راجعها قبل الحفظ.</div>`;
+  setTimeout(()=>$('#pasteModal').classList.remove('on'),1400);
+};
+
+/* ==================================================================
+   القياسات
+   ================================================================== */
+$('#btnQuick').onclick=async()=>{
+  const row={subscriber_id:ME.id,
+    weight_kg:num($('#qWeight').value),bp_sys:num($('#qSys').value),bp_dia:num($('#qDia').value),
+    glucose:num($('#qGlu').value),water_l:num($('#qWater').value),sleep_h:num($('#qSleep').value),
+    activity_min:num($('#qAct').value)};
+  if(Object.keys(row).filter(k=>k!=='subscriber_id').every(k=>row[k]==null)) return toast('لا يوجد شيء لحفظه',true);
+  const b=$('#btnQuick'); b.disabled=true; setSync('busy');
+  try{
+    const {error}=await sb.from('vitals').insert(row); if(error) throw error;
+    ['qWeight','qSys','qDia','qGlu','qWater','qSleep','qAct'].forEach(i=>$('#'+i).value='');
+    await loadAll(); renderAll(); toast('حُفظت القياسات');
+  }catch(e){ setSync('err'); toast('تعذّر الحفظ: '+(e.message||e),true); }
+  finally{ b.disabled=false; }
+};
+
+/* ==================================================================
+   الأكل
+   ================================================================== */
+let activeCat='الكل';
+const renderCats=()=>$('#fCats').innerHTML=CATS.map(c=>`<button class="chip" data-c="${esc(c)}" aria-pressed="${c===activeCat}">${esc(c)}</button>`).join('');
+function renderFoods(){
+  const q=$('#fSearch').value.trim();
+  const list=FOODS.filter(f=>(activeCat==='الكل'||f.c===activeCat)&&(!q||f.n.includes(q)));
+  $('#fGrid').innerHTML=list.length
+    ? list.map(f=>`<button class="food" data-n="${esc(f.n)}"><b>${esc(f.n)}</b><span>${f.k} سعرة / 100غ</span></button>`).join('')
+    : '<div class="empty" style="grid-column:1/-1">لا نتيجة.</div>';
+}
+$('#fSearch').addEventListener('input',renderFoods);
+$('#fCats').addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;activeCat=b.dataset.c;renderCats();renderFoods();});
+$('#fGrid').addEventListener('click',e=>{
+  const b=e.target.closest('.food'); if(!b) return;
+  const f=FOODS.find(x=>x.n===b.dataset.n); if(!f) return;
+  const ex=plate.find(p=>p.n===f.n); ex?ex.g+=50:plate.push({...f,g:150});
+  renderPlate();
+});
+const sumPlate=()=>plate.reduce((a,p)=>({k:a.k+p.k*p.g/100,cb:a.cb+p.cb*p.g/100,p:a.p+p.p*p.g/100,f:a.f+p.f*p.g/100}),{k:0,cb:0,p:0,f:0});
+function paintTotals(){
+  const s=sumPlate();
+  $('#tKcal').textContent=Math.round(s.k);$('#tCarb').textContent=Math.round(s.cb);
+  $('#tProt').textContent=Math.round(s.p);$('#tFat').textContent=Math.round(s.f);
+}
+function renderPlate(){
+  if(!plate.length){$('#plate').innerHTML='<div class="empty">لم تضف شيئاً بعد.</div>';$('#plateTotals').hidden=true;return;}
+  $('#plate').innerHTML=plate.map((p,i)=>`<div class="plate">
+    <div class="pn">${esc(p.n)}</div>
+    <div class="qty"><button data-a="minus" data-i="${i}">−</button>
+      <input class="num" data-a="set" data-i="${i}" value="${p.g}" inputmode="numeric">
+      <button data-a="plus" data-i="${i}">+</button></div>
+    <span style="font-size:calc(12px * var(--s));color:var(--muted);width:62px;text-align:center" class="num">${Math.round(p.k*p.g/100)} سعرة</span>
+    <button class="btn-x" data-a="del" data-i="${i}">✕</button></div>`).join('');
+  $('#plateTotals').hidden=false; paintTotals();
+}
+$('#plate').addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]'); if(!b||b.tagName==='INPUT') return;
+  const i=+b.dataset.i;
+  if(b.dataset.a==='plus') plate[i].g+=25;
+  else if(b.dataset.a==='minus') plate[i].g=Math.max(25,plate[i].g-25);
+  else if(b.dataset.a==='del') plate.splice(i,1);
+  renderPlate();
+});
+$('#plate').addEventListener('input',e=>{
+  const i=e.target.closest('input[data-a="set"]'); if(!i) return;
+  plate[+i.dataset.i].g=Math.max(0,parseInt(i.value)||0); paintTotals();
+});
+$('#btnClearPlate').onclick=()=>{plate=[];renderPlate();};
+$('#btnRepeat').onclick=()=>{
+  if(!D.meals.length) return toast('لا وجبات سابقة');
+  plate=(D.meals[0].items||[]).map(x=>({...x})); renderPlate(); toast('نُسخت آخر وجبة');
+};
+$('#btnSaveMeal').onclick=async()=>{
+  if(!plate.length) return toast('الصحن فارغ',true);
+  const s=sumPlate(); const b=$('#btnSaveMeal'); b.disabled=true; setSync('busy');
+  try{
+    const {error}=await sb.from('meals').insert({subscriber_id:ME.id,items:plate,
+      totals:{k:Math.round(s.k),cb:Math.round(s.cb),p:Math.round(s.p),f:Math.round(s.f)}});
+    if(error) throw error;
+    plate=[]; renderPlate(); await loadAll(); renderMealHistory(); toast('حُفظت الوجبة');
+  }catch(e){ setSync('err'); toast('تعذّر الحفظ: '+(e.message||e),true); }
+  finally{ b.disabled=false; }
+};
+function renderMealHistory(){
+  const box=$('#mealHistory');
+  if(!D.meals.length) return box.innerHTML='<div class="empty">لا وجبات محفوظة.</div>';
+  box.innerHTML=D.meals.slice(0,8).map(m=>`<div class="plate">
+    <div class="pn">${esc((m.items||[]).map(i=>i.n).join('، '))}
+      <div style="font-size:calc(11.5px * var(--s));color:var(--muted);font-weight:400">${fmtDate(m.eaten_at)}</div></div>
+    <span class="tag t-neutral num">${(m.totals&&m.totals.k)||0} سعرة</span></div>`).join('');
+}
+
+/* ==================================================================
+   الأعراض
+   ================================================================== */
+function renderSym(){
+  $('#symList').innerHTML=SYMPTOMS.map(s=>`<div class="symrow">
+    <div class="sn">${esc(s.n)}</div>
+    <div class="scale" data-s="${s.id}">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>
+      `<button data-v="${v}" class="${v>=7?'hi':v>=4?'mid':''}" aria-pressed="${(symVals[s.id]||0)===v}">${v}</button>`).join('')}</div>
+  </div>`).join('');
+}
+$('#symList').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-v]'); if(!b) return;
+  const id=b.closest('.scale').dataset.s;
+  symVals[id]=+b.dataset.v;
+  b.closest('.scale').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
+  const sd=SYMPTOMS.find(s=>s.id===id);
+  if(sd&&sd.red&&symVals[id]>=sd.red) toast('درجة عالية في «'+sd.n+'» — لا تنتظر المنصة، اتصل بطبيبك أو الإسعاف.',true);
+});
+$('#btnSaveSym').onclick=async()=>{
+  const b=$('#btnSaveSym'); b.disabled=true; setSync('busy');
+  try{
+    const {error}=await sb.from('symptom_logs').insert({subscriber_id:ME.id,scores:symVals,note:$('#symNote').value||null});
+    if(error) throw error;
+    symVals={}; $('#symNote').value=''; renderSym();
+    await loadAll(); renderSymHistory(); renderAlerts(); toast('حُفظت الأعراض');
+  }catch(e){ setSync('err'); toast('تعذّر الحفظ: '+(e.message||e),true); }
+  finally{ b.disabled=false; }
+};
+function renderSymHistory(){
+  const box=$('#symHistory');
+  if(!D.symptoms.length) return box.innerHTML='<div class="empty">لا تسجيلات بعد.</div>';
+  box.innerHTML=D.symptoms.slice(0,6).map(s=>{
+    const on=Object.entries(s.scores||{}).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+    return `<div class="plate"><div class="pn">${fmtDate(s.logged_at)}
+      <div style="font-size:calc(12px * var(--s));color:var(--muted);font-weight:400">${on.length?esc(on.map(([k,v])=>(SYMPTOMS.find(x=>x.id===k)||{}).n+' '+v).join('، ')):'لا أعراض'}</div></div></div>`;
+  }).join('');
+}
+
+/* ==================================================================
+   الأدوية — تدفّق MED_STOPPED_SELF
+   ================================================================== */
+function renderMeds(){
+  const box=$('#medList');
+  const rows=D.meds.map(m=>{
+    const stopped=m.status!=='active';
+    const risky = m.status==='stopped' && m.stop_was_advised_by && m.stop_was_advised_by!=='physician';
+    return `<div class="meal-card" data-mid="${m.id}">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:2;min-width:130px"><label class="f">الدواء</label><input class="in m-n" value="${esc(m.name)}"></div>
+        <div style="flex:1;min-width:80px"><label class="f">الجرعة</label><input class="in m-d" value="${esc(m.dose||'')}"></div>
+        <div style="flex:1;min-width:100px"><label class="f">التكرار</label><input class="in m-f" value="${esc(m.frequency||'')}"></div>
+        <div style="flex:1;min-width:110px"><label class="f">الحالة</label>
+          <select class="in m-s">
+            <option value="active" ${m.status==='active'?'selected':''}>مستمر</option>
+            <option value="stopped" ${m.status==='stopped'?'selected':''}>توقّفت عنه</option>
+            <option value="dose_changed" ${m.status==='dose_changed'?'selected':''}>تغيّرت الجرعة</option>
+          </select></div>
+        <button class="btn-x m-del">✕</button>
+      </div>
+      <div class="m-why" ${stopped?'':'hidden'} style="margin-top:12px">
+        <label class="f">بنصيحة من تغيّر هذا الدواء؟ <span style="color:var(--danger)">إجباري</span></label>
+        <select class="in m-adv">
+          <option value="">— اختر —</option>
+          <option value="physician" ${m.stop_was_advised_by==='physician'?'selected':''}>طبيبي المعالج</option>
+          <option value="self" ${m.stop_was_advised_by==='self'?'selected':''}>قراري وحدي</option>
+          <option value="other" ${m.stop_was_advised_by==='other'?'selected':''}>شخص آخر غير طبيب</option>
+        </select>
+        ${risky?`<div class="note n-bad" style="margin-top:10px">
+          <b>هذا أخطر ما يمكن أن يحدث.</b> إيقاف دواء موصوف دون طبيبك أدّى إلى وفيات موثّقة مع الأنظمة الغذائية المقيّدة.
+          تواصل مع طبيبك اليوم قبل أي خطوة أخرى.</div>`:''}
+      </div>
+    </div>`;}).join('');
+  box.innerHTML = rows || '<div class="empty">لم تضف دواءً بعد.</div>';
+}
+$('#btnAddMed').onclick=async()=>{
+  const {error}=await sb.from('medications').insert({subscriber_id:ME.id,name:'دواء جديد'});
+  if(error) return toast('تعذّرت الإضافة: '+error.message,true);
+  await loadAll(); renderMeds();
+};
+$('#medList').addEventListener('change',async e=>{
+  const card=e.target.closest('[data-mid]'); if(!card) return;
+  const id=card.dataset.mid;
+  const status=card.querySelector('.m-s').value;
+  const adv=card.querySelector('.m-adv') ? card.querySelector('.m-adv').value : null;
+  card.querySelector('.m-why').hidden = (status==='active');
+  if(status!=='active' && !adv){ toast('اختر بنصيحة من تغيّر الدواء',true); return; }
+  const patch={ name:card.querySelector('.m-n').value.trim()||'—',
+    dose:card.querySelector('.m-d').value||null, frequency:card.querySelector('.m-f').value||null,
+    status, status_changed_on: status==='active'?null:today(),
+    stop_was_advised_by: status==='active'?null:adv };
+  setSync('busy');
+  const {error}=await sb.from('medications').update(patch).eq('id',id);
+  if(error){ setSync('err'); return toast('تعذّر الحفظ: '+error.message,true); }
+  setSync('ok');
+  await loadAll(); renderMeds(); renderAlerts();
+  if(status==='stopped'&&adv&&adv!=='physician') go('alerts');
+});
+$('#medList').addEventListener('click',async e=>{
+  if(!e.target.closest('.m-del')) return;
+  const id=e.target.closest('[data-mid]').dataset.mid;
+  if(!confirm('حذف هذا الدواء من القائمة؟')) return;
+  await sb.from('medications').delete().eq('id',id);
+  await loadAll(); renderMeds();
+});
+
+/* ==================================================================
+   الملفات
+   ================================================================== */
+async function sha256(buf){
+  const h=await crypto.subtle.digest('SHA-256',buf);
+  return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function readExif(buf){
+  const dv=new DataView(buf); const out={found:false};
+  if(dv.byteLength<4||dv.getUint16(0)!==0xFFD8) return out;
+  let off=2;
+  while(off<dv.byteLength-4){
+    if(dv.getUint8(off)!==0xFF) break;
+    const marker=dv.getUint8(off+1), size=dv.getUint16(off+2);
+    if(marker===0xE1){
+      if(dv.getUint32(off+4)!==0x45786966) break;
+      const tiff=off+10, le=dv.getUint16(tiff)===0x4949;
+      const g16=p=>dv.getUint16(p,le), g32=p=>dv.getUint32(p,le);
+      const readIFD=base=>{
+        const n=g16(base), res={};
+        for(let i=0;i<n;i++){
+          const e=base+2+i*12, tag=g16(e), type=g16(e+2), cnt=g32(e+4);
+          let val=null;
+          if(type===2){const len=cnt,p=len>4?tiff+g32(e+8):e+8;let s='';
+            for(let j=0;j<len-1;j++) s+=String.fromCharCode(dv.getUint8(p+j));
+            val=s.replace(/\0/g,'').trim();}
+          else if(type===3) val=g16(e+8); else if(type===4) val=g32(e+8);
+          res[tag]={val};
+        }
+        return res;
+      };
+      const ifd0=readIFD(tiff+g32(tiff+4));
+      out.found=true;
+      out.make=ifd0[0x010F]&&ifd0[0x010F].val; out.model=ifd0[0x0110]&&ifd0[0x0110].val;
+      out.software=ifd0[0x0131]&&ifd0[0x0131].val; out.dt=ifd0[0x0132]&&ifd0[0x0132].val;
+      if(ifd0[0x8769]){const ex=readIFD(tiff+ifd0[0x8769].val); out.dtOrig=ex[0x9003]&&ex[0x9003].val;}
+      return out;
+    }
+    if(marker===0xDA) break;
+    off+=2+size;
+  }
+  return out;
+}
+const EDITORS=/photoshop|gimp|lightroom|snapseed|picsart|canva|paint\.net|pixlr|affinity|illustrator|acrobat.*(pro|dc)|nitro|foxit.*(editor|phantom)|ilovepdf|smallpdf|pdf.?editor/i;
+
+function checkImage(exif,file){
+  const c=[];
+  if(!exif.found) c.push({l:'warn',t:'لا توجد بيانات كاميرا (EXIF). طبيعي في لقطات الشاشة والصور المرسلة عبر التطبيقات، لكنه يعني تعذّر التحقّق من المصدر.'});
+  else{
+    if(exif.make||exif.model) c.push({l:'ok',t:'صُوّرت بجهاز: '+[exif.make,exif.model].filter(Boolean).join(' ')});
+    if(exif.software) c.push({l:EDITORS.test(exif.software)?'warn':'info',t:'برنامج المعالجة: '+exif.software});
+    if(exif.dtOrig) c.push({l:'ok',t:'تاريخ الالتقاط: '+exif.dtOrig});
+    if(exif.dt&&exif.dtOrig&&exif.dt!==exif.dtOrig) c.push({l:'warn',t:'تاريخ التعديل يختلف عن تاريخ الالتقاط.'});
+  }
+  c.push({l:'info',t:'آخر تعديل على الملف في جهازك: '+new Date(file.lastModified).toLocaleString('ar-TN')});
+  return c;
+}
+function checkPdf(txt,file){
+  const c=[], clean=s=>s.replace(/[^\x20-\x7E\u0600-\u06FF]/g,'').trim();
+  const eofs=(txt.match(/%%EOF/g)||[]).length;
+  const prod=txt.match(/\/Producer\s*\(([^)]{0,120})\)/), crea=txt.match(/\/Creator\s*\(([^)]{0,120})\)/);
+  const cd=txt.match(/\/CreationDate\s*\(D:(\d{14})/), md=txt.match(/\/ModDate\s*\(D:(\d{14})/);
+  const fd=s=>`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
+  if(crea) c.push({l:EDITORS.test(crea[1])?'warn':'info',t:'أُنشئ بواسطة: '+clean(crea[1])});
+  if(prod) c.push({l:EDITORS.test(prod[1])?'warn':'info',t:'منتِج الملف: '+clean(prod[1])});
+  if(cd) c.push({l:'ok',t:'تاريخ الإنشاء: '+fd(cd[1])});
+  if(cd&&md&&md[1]!==cd[1]) c.push({l:'warn',t:'عُدّل بعد الإنشاء: '+fd(md[1])});
+  if(eofs>1) c.push({l:'warn',t:`حُفظ ${eofs} مرات فوق بعضه (حفظ تراكمي).`});
+  else if(eofs===1) c.push({l:'ok',t:'حفظة واحدة بلا تعديلات تراكمية.'});
+  if(/\/Type\s*\/Annot/.test(txt)) c.push({l:'warn',t:'يحتوي تعليقات أو حقولاً مضافة.'});
+  c.push({l:'info',t:'آخر تعديل في جهازك: '+new Date(file.lastModified).toLocaleString('ar-TN')});
+  return c;
+}
+
+async function upload(file){
+  if(file.size>25*1024*1024) return toast(`«${file.name}» أكبر من 25 ميغا`,true);
+  setSync('busy');
+  try{
+    const buf=await file.arrayBuffer();
+    const hash=await sha256(buf);
+    let checks=[];
+    if(file.type.startsWith('image/')) checks=checkImage(file.type==='image/jpeg'?readExif(buf):{found:false},file);
+    else if(file.type==='application/pdf'){
+      const bytes=new Uint8Array(buf.slice(0,Math.min(buf.byteLength,3*1024*1024)));
+      const parts=[]; for(let i=0;i<bytes.length;i+=32768) parts.push(String.fromCharCode.apply(null,bytes.subarray(i,i+32768)));
+      checks=checkPdf(parts.join(''),file);
+    }
+    const path=`${ME.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.\-]/g,'_')}`;
+    const {error:upErr}=await sb.storage.from('medical-docs').upload(path,file,{contentType:file.type});
+    if(upErr) throw upErr;
+    const {error:dbErr}=await sb.from('documents').insert({
+      subscriber_id:ME.id, kind:$('#fKind').value, storage_path:path,
+      original_name:file.name, mime:file.type, size_bytes:file.size,
+      sha256:hash, doc_date:$('#fDate').value||null, integrity:checks});
+    if(dbErr) throw dbErr;
+    setSync('ok'); await loadAll(); renderFiles(); toast('رُفع «'+file.name+'»');
+  }catch(e){ setSync('err'); toast('تعذّر الرفع: '+(e.message||e),true); }
+}
+function renderFiles(){
+  const box=$('#fileList');
+  if(!D.docs.length) return box.innerHTML='<div class="empty">لا ملفات بعد.</div>';
+  const K={lab:'تقرير تحاليل',imaging:'صورة أشعة',prescription:'وصفة',report:'تقرير طبيب'};
+  box.innerHTML=D.docs.map(f=>{
+    const checks=Array.isArray(f.integrity)?f.integrity:[];
+    const warns=checks.filter(c=>c.l==='warn').length;
+    return `<div class="filerow">
+      <div class="thumb">▤</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="font-size:calc(13.5px * var(--s));word-break:break-word">${esc(f.original_name||'ملف')}</b>
+          <span class="tag t-neutral">${K[f.kind]||'أخرى'}</span>
+          ${warns?`<span class="tag t-warn">${warns} ملاحظة</span>`:'<span class="tag t-ok">بلا ملاحظات</span>'}
+        </div>
+        <div style="font-size:calc(11.5px * var(--s));color:var(--muted);margin-top:2px">
+          ${((f.size_bytes||0)/1024).toFixed(0)} ك.ب · رُفع ${fmtDate(f.uploaded_at)}</div>
+        <div class="hash">SHA-256 ${esc((f.sha256||'').slice(0,32))}…</div>
+        <div class="checks">${checks.map(c=>`<div class="check"><span class="b b-${c.l}"></span><span>${esc(c.t)}</span></div>`).join('')}</div>
+        <button class="btn btn-g btn-sm noprint" style="margin-top:9px" data-open="${esc(f.storage_path)}">فتح الملف</button>
+      </div></div>`;}).join('');
+}
+$('#fileList').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-open]'); if(!b) return;
+  const {data,error}=await sb.storage.from('medical-docs').createSignedUrl(b.dataset.open,60);
+  if(error) return toast('تعذّر الفتح: '+error.message,true);
+  window.open(data.signedUrl,'_blank');
+});
+const drop=$('#drop');
+drop.onclick=()=>$('#fileInput').click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#fileInput').click();}};
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+drop.addEventListener('drop',async e=>{e.preventDefault();drop.classList.remove('over');for(const f of e.dataTransfer.files) await upload(f);});
+$('#fileInput').addEventListener('change',async e=>{for(const f of e.target.files) await upload(f); e.target.value='';});
+$('#verifyInput').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const h=await sha256(await f.arrayBuffer());
+  const hit=D.docs.find(x=>x.sha256===h);
+  $('#verifyOut').innerHTML=hit
+    ? `<div class="note n-ok"><b>مطابق.</b> هذا هو نفس الملف المرفوع باسم «${esc(hit.original_name)}»، لم يتغيّر فيه بايت واحد.</div>`
+    : `<div class="note n-warn"><b>غير مطابق.</b> لا يوافق أي ملف مرفوع — إمّا ملف جديد، أو نسخة معدَّلة.<div class="hash">${esc(h)}</div></div>`;
+  e.target.value='';
+});
+
+/* ==================================================================
+   لوحة اليوم والرسوم
+   ================================================================== */
+function lastVital(k){for(let i=D.vitals.length-1;i>=0;i--) if(D.vitals[i][k]!=null) return D.vitals[i]; return null;}
+function lastLab(id){
+  const fu=followUps();
+  for(let i=fu.length-1;i>=0;i--) if(fu[i].tests[id]!=null) return fu[i].tests[id];
+  return baseTests()[id] ?? null;
+}
+const kpi=(label,val,unit,tag,tc)=>`<div class="card" style="margin-top:0">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div class="eyebrow" style="margin:0">${label}</div>${tag?`<span class="tag ${tc}">${tag}</span>`:''}</div>
+  <div class="display num" style="font-size:calc(27px * var(--s));margin-top:8px">${val}<span style="font-size:calc(13px * var(--s));color:var(--muted);font-family:var(--body);margin-inline-start:4px">${unit||''}</span></div></div>`;
+
+function renderToday(){
+  $('#todayTitle').textContent=new Date().toLocaleDateString('ar-TN',{weekday:'long',day:'numeric',month:'long'});
+  const start=D.base&&(D.base.diet_started_on||D.base.recorded_on);
+  const days=start?Math.floor((Date.now()-new Date(start))/864e5):0;
+  $('#todaySub').textContent = D.base ? `اليوم ${days} من المتابعة · ${followUps().length} تحليل مسجّل` : 'ابدأ بإدخال خط الأساس في قسم التحاليل';
+  const wv=lastVital('weight_kg'); const w=wv?wv.weight_kg:(D.base&&D.base.weight_kg);
+  const glu=lastLab('fbs'), eg=lastLab('egfr'), bp=lastVital('bp_sys');
+  let bpTag='',bpCls='t-neutral';
+  if(bp){const s=bp.bp_sys,d=bp.bp_dia||0;
+    if(s>=180||d>=110){bpTag='مرتفع جداً';bpCls='t-bad';}
+    else if(s>=140||d>=90){bpTag='مرتفع';bpCls='t-warn';}
+    else if(s<90){bpTag='منخفض';bpCls='t-warn';}
+    else{bpTag='ضمن المألوف';bpCls='t-ok';}}
+  const gT=TESTS.find(x=>x.id==='fbs'), eT=TESTS.find(x=>x.id==='egfr');
+  const gs=state(gT,glu), es=state(eT,eg);
+  const base=D.base&&D.base.weight_kg;
+  $('#kpis').innerHTML=
+    kpi('الوزن', w??'—','كغ', (base&&w)?((w-base>0?'+':'')+(w-base).toFixed(1)+' كغ'):'', 't-neutral')+
+    kpi('السكر الصائم', glu??'—','mg/dL', stateLabel(gs), cls(gs))+
+    kpi('ترشيح الكلى', eg??'—','mL/min', stateLabel(es), cls(es))+
+    kpi('ضغط الدم', bp?`${bp.bp_sys}/${bp.bp_dia??'—'}`:'—','', bpTag, bpCls);
+  drawToday();
+}
+function line(id,labels,sets,opts){
+  const el=document.getElementById(id); if(!el) return;
+  if(charts[id]) charts[id].destroy();
+  charts[id]=new Chart(el,{type:'line',data:{labels,datasets:sets.map(s=>({label:s.l,data:s.d,
+      borderColor:s.c,backgroundColor:s.bg||'transparent',fill:!!s.bg,tension:.35,pointRadius:3,
+      pointBackgroundColor:s.c,borderWidth:2,spanGaps:true}))},
+    options:Object.assign({responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:sets.length>1,labels:{font:{family:"'IBM Plex Sans Arabic'",size:11},boxWidth:10,usePointStyle:true}}},
+      scales:{x:{grid:{display:false},ticks:{font:{family:"'IBM Plex Sans Arabic'",size:10},color:'#7C8F9C'}},
+              y:{grid:{color:'#EDF2F5'},border:{display:false},ticks:{font:{family:"'IBM Plex Sans Arabic'",size:10},color:'#7C8F9C'}}}},opts||{})});
+}
+function weightSeries(){
+  const p=[]; if(D.base&&D.base.weight_kg) p.push({d:D.base.recorded_on,v:D.base.weight_kg});
+  D.vitals.forEach(v=>{if(v.weight_kg!=null)p.push({d:v.measured_at,v:v.weight_kg});});
+  return p;
+}
+function labSeries(id){
+  const p=[]; const bt=baseTests(); const b=D.labs.find(l=>l.is_baseline);
+  if(bt[id]!=null) p.push({d:(b&&b.taken_on)||(D.base&&D.base.recorded_on)||today(),v:bt[id]});
+  followUps().forEach(l=>{if(l.tests[id]!=null)p.push({d:l.taken_on,v:l.tests[id]});});
+  return p;
+}
+function drawToday(){
+  const w=weightSeries(); line('cW',w.map(p=>fmtDate(p.d)),[{l:'الوزن',d:w.map(p=>p.v),c:'#0B7A6B',bg:'rgba(11,122,107,.09)'}],{scales:{y:{beginAtZero:false}}});
+  const s=labSeries('fbs'); line('cS',s.map(p=>fmtDate(p.d)),[{l:'سكر',d:s.map(p=>p.v),c:'#AF2822',bg:'rgba(175,40,34,.08)'}],{scales:{y:{suggestedMin:60,suggestedMax:180}}});
+}
+function drawReport(){
+  const w=weightSeries(); line('rW',w.map(p=>fmtDate(p.d)),[{l:'الوزن',d:w.map(p=>p.v),c:'#0B7A6B',bg:'rgba(11,122,107,.09)'}],{scales:{y:{beginAtZero:false}}});
+  const s=labSeries('fbs'); line('rS',s.map(p=>fmtDate(p.d)),[{l:'سكر',d:s.map(p=>p.v),c:'#AF2822',bg:'rgba(175,40,34,.08)'}],{scales:{y:{suggestedMin:60,suggestedMax:180}}});
+  const e=labSeries('egfr'); line('rE',e.map(p=>fmtDate(p.d)),[{l:'eGFR',d:e.map(p=>p.v),c:'#1F7A45',bg:'rgba(31,122,69,.08)'}],{scales:{y:{suggestedMin:30,suggestedMax:130}}});
+  const bp=[]; if(D.base&&D.base.bp_sys) bp.push({d:D.base.recorded_on,s:D.base.bp_sys,x:D.base.bp_dia});
+  D.vitals.forEach(v=>{if(v.bp_sys!=null)bp.push({d:v.measured_at,s:v.bp_sys,x:v.bp_dia});});
+  line('rB',bp.map(p=>fmtDate(p.d)),[{l:'انقباضي',d:bp.map(p=>p.s),c:'#0E1F2B'},{l:'انبساطي',d:bp.map(p=>p.x),c:'#7C8F9C'}],{scales:{y:{suggestedMin:55,suggestedMax:180}}});
+  const bt=baseTests(), fu=followUps(), last=fu.length?fu[fu.length-1].tests:{};
+  const rows=TESTS.filter(t=>bt[t.id]!=null||last[t.id]!=null).map(t=>{
+    const bv=bt[t.id]??null, lv=last[t.id]??null, cur=lv??bv, st=state(t,cur);
+    let diff='—';
+    if(bv!=null&&lv!=null){const d=lv-bv;
+      diff=`<span style="color:${d>0?'#AF2822':d<0?'#1F7A45':'#7C8F9C'}">${d>0?'▲':d<0?'▼':'='} ${Math.abs(d).toFixed(1)}</span>`;}
+    return `<tr><td>${esc(t.n)}<div style="font-size:calc(11px * var(--s));color:var(--muted)">${esc(t.u)}</div></td>
+      <td class="num">${bv??'—'}</td><td class="num" style="font-weight:600">${lv??'—'}</td><td class="num">${diff}</td>
+      <td style="min-width:120px">${gauge(t,cur,bv)}</td>
+      <td><span class="tag ${cls(st)}">${stateLabel(st)}</span></td></tr>`;});
+  $('#cmpBody').innerHTML=rows.length?rows.join(''):'<tr><td colspan="6" class="empty">لا نتائج مسجّلة بعد.</td></tr>';
+}
+
+/* ==================================================================
+   التنبيهات (تُحسب في الواجهة — محرّك الخادم مرحلة لاحقة)
+   ================================================================== */
+function buildAlerts(){
+  const a=[], push=(l,t,m)=>a.push({l,t,m});
+  const bt=baseTests(), fu=followUps(), last=fu.length?fu[fu.length-1].tests:bt;
+
+  D.meds.forEach(m=>{
+    if(m.status==='stopped'&&m.stop_was_advised_by&&m.stop_was_advised_by!=='physician')
+      push('bad','توقّف عن دواء دون طبيب: '+m.name,
+        'أوقفت دواءً موصوفاً بغير نصيحة طبيبك. هذا أخطر ما يمكن أن يحدث أثناء أي نظام غذائي مقيّد، وقد أدّى إلى وفيات موثّقة. تواصل مع طبيبك اليوم.');
+  });
+  TESTS.forEach(t=>{
+    const v=last[t.id]; if(v==null) return;
+    if(t.cl!=null&&v<t.cl) push('bad',t.n+' منخفض بدرجة حرجة',`القيمة ${v} ${t.u} (المتوقّع ${t.lo}–${t.hi}). اعرضها على طبيبك دون تأخير.`);
+    else if(t.ch!=null&&v>t.ch) push('bad',t.n+' مرتفع بدرجة حرجة',`القيمة ${v} ${t.u} (المتوقّع ${t.lo}–${t.hi}). اعرضها على طبيبك دون تأخير.`);
+    else if(v<t.lo||v>t.hi) push('warn',t.n+' خارج المجال',`القيمة ${v} ${t.u} مقابل ${t.lo}–${t.hi}. اذكرها في زيارتك القادمة.`);
+  });
+  if(bt.egfr!=null&&last.egfr!=null&&bt.egfr-last.egfr>=15)
+    push('warn','تراجع في ترشيح الكلى',`انخفض eGFR من ${bt.egfr} إلى ${last.egfr}. يستحق مراجعة طبية.`);
+  if(bt.ldl!=null&&last.ldl!=null&&last.ldl>=bt.ldl*1.4)
+    push('warn','ارتفاع ملحوظ في الكوليسترول الضار',`ارتفع LDL من ${bt.ldl} إلى ${last.ldl} منذ خط الأساس.`);
+  if(bt.hba1c!=null&&last.hba1c!=null&&bt.hba1c-last.hba1c>=0.5)
+    push('ok','تحسّن في الخضاب السكري',`انخفض ${(bt.hba1c-last.hba1c).toFixed(1)} نقطة عن خط الأساس.`);
+  const s=D.symptoms[0];
+  if(s) SYMPTOMS.forEach(sd=>{ if(sd.red&&((s.scores||{})[sd.id]||0)>=sd.red)
+    push('bad','عرَض شديد: '+sd.n,`سجّلت درجة ${s.scores[sd.id]}/10. هذا لا يُؤجَّل — اتصل بطبيبك أو بالإسعاف.`); });
+  const bp=lastVital('bp_sys');
+  if(bp&&(bp.bp_sys>=180||(bp.bp_dia||0)>=110)) push('bad','ارتفاع ضغط حادّ',`قياس ${bp.bp_sys}/${bp.bp_dia}. راجع طبيبك اليوم.`);
+  return a;
+}
+function renderAlerts(){
+  const a=buildAlerts(), box=$('#alertBox'), c=$('#alertCount');
+  const reds=a.filter(x=>x.l==='bad').length;
+  c.hidden=!reds; c.textContent=reds;
+  if(!a.length) return box.innerHTML='<div class="note n-info">لا شيء يستدعي الانتباه في القيم المسجّلة. هذا لا يعني أن كل شيء سليم — يعني أن القواعد المبرمجة هنا لم تُفعَّل.</div>';
+  const order={bad:0,warn:1,ok:2};
+  box.innerHTML=a.sort((x,y)=>order[x.l]-order[y.l]).map(x=>
+    `<div class="note ${x.l==='bad'?'n-bad':x.l==='warn'?'n-warn':'n-ok'}" style="margin-bottom:10px">
+      <b>${esc(x.t)}</b><div style="margin-top:3px">${esc(x.m)}</div></div>`).join('');
+}
+
+/* ==================================================================
+   الحساب
+   ================================================================== */
+function renderLinks(){
+  const box=$('#linkList');
+  if(!D.links.length) return box.innerHTML='<div class="empty">لا طبيب مصرَّح له حالياً.</div>';
+  box.innerHTML=D.links.map(l=>`<div class="plate">
+    <div class="pn">${esc((l.clinician&&l.clinician.full_name)||'طبيب')}
+      <div style="font-size:calc(11.5px * var(--s));color:var(--muted);font-weight:400">
+        ${l.status==='active'?'مصرَّح له':l.status==='pending'?'بانتظار موافقتك':'مسحوب'}</div></div>
+    ${l.status==='pending'?`<button class="btn btn-p btn-sm" data-link="${l.id}" data-act="active">أوافق</button>`:''}
+    ${l.status==='active'?`<button class="btn btn-g btn-sm" data-link="${l.id}" data-act="revoked">سحب الإذن</button>`:''}
+  </div>`).join('');
+}
+$('#linkList').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-link]'); if(!b) return;
+  const {error}=await sb.from('care_links').update({status:b.dataset.act}).eq('id',b.dataset.link);
+  if(error) return toast('تعذّر التنفيذ: '+error.message,true);
+  await loadAll(); renderLinks(); toast(b.dataset.act==='active'?'مُنح الإذن':'سُحب الإذن');
+});
+$('#btnExport').onclick=()=>{
+  const blob=new Blob([JSON.stringify({profile:PROFILE,...D},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='بياناتي-'+today()+'.json'; a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+/* ==================================================================
+   الإقرار
+   ================================================================== */
+const CONSENT_VERSION='1.0';
+async function needsConsent(){
+  const {data}=await sb.from('consents').select('id')
+    .eq('user_id',ME.id).eq('kind','medical_disclaimer').eq('version',CONSENT_VERSION).limit(1);
+  return !(data&&data.length);
+}
+$('#btnConsent').onclick=async()=>{
+  await sb.from('consents').insert({user_id:ME.id,kind:'medical_disclaimer',
+    version:CONSENT_VERSION,user_agent:navigator.userAgent});
+  $('#gate').classList.remove('on');
+};
+
+/* ==================================================================
+   التعبئة والعرض
+   ================================================================== */
+function hydrate(){
+  const p=PROFILE||{};
+  $('#pName').value=p.full_name||''; $('#pYear').value=p.birth_year||''; $('#pSex').value=p.sex||'';
+  const initial=(p.full_name||ME.email||'؟').trim().charAt(0);
+  $('#avatar').textContent=initial;
+  $('#whoName').textContent=p.full_name||ME.email;
+  $('#whoRole').textContent={subscriber:'مشترك',clinician:'طبيب مشرف',educator:'مرافق صحي',admin:'إدارة'}[p.role]||'مشترك';
+  if(D.base){
+    const b=D.base;
+    $('#bW').value=b.weight_kg??''; $('#bH').value=b.height_cm??''; $('#bWa').value=b.waist_cm??'';
+    $('#bSys').value=b.bp_sys??''; $('#bDia').value=b.bp_dia??''; $('#bHr').value=b.hr??'';
+    $('#bDiet').value=b.diet_started_on||''; $('#hDis').value=b.conditions||''; $('#hAll').value=b.allergies||'';
+    bmi();
+  }
+  $('#fuDate').value=today(); $('#fDate').value=today();
+}
+function renderAll(){
+  labRows($('#baseRows'),'base'); labRows($('#newRows'),'new');
+  renderToday(); renderMealHistory(); renderSymHistory(); renderMeds(); renderFiles();
+  renderAlerts(); renderLinks();
+  const box=$('#fuHistory');
+  box.innerHTML=followUps().length
+    ? followUps().slice().reverse().map(l=>`<div class="plate"><div class="pn">${fmtDate(l.taken_on)}
+        <div style="font-size:calc(11.5px * var(--s));color:var(--muted);font-weight:400">${esc(l.lab_name||'بلا اسم مخبر')} · ${Object.keys(l.tests).length} قيمة</div></div></div>`).join('')
+    : '<div class="empty">لا تحاليل مسجّلة بعد.</div>';
+}
+
+/* ==================================================================
+   الإقلاع
+   ================================================================== */
+renderCats(); renderFoods(); renderSym();
+
+async function connect(){
+  const cfg=getCfg();
+  if(!cfg){ $('#setupScreen').hidden=false; return; }
+  $('#setupScreen').hidden=true;
+
+  // Vérifier que les bibliothèques sont chargées
+  if(typeof Chart === 'undefined'){
+    console.error('Chart.js non chargé');
+    toast('خطأ: لم تُحمَّل مكتبة الرسوم البيانية', true);
+  }
+
+  try{
+    if(!window.supabase || !window.supabase.createClient){
+      // Attendre un peu que le CDN charge
+      await new Promise(r => setTimeout(r, 1000));
+      if(!window.supabase || !window.supabase.createClient)
+        throw new Error('مكتبة Supabase لم تُحمَّل — تأكّد من الاتصال بالإنترنت');
+    }
+    sb=window.supabase.createClient(cfg.url,cfg.key);
+  }catch(e){
+    $('#setupScreen').hidden=false;
+    const err=document.getElementById('cfgErr');
+    if(err) err.innerHTML='<div class="note n-bad">'+esc(e.message)+'</div>';
+    return;
+  }
+
+  sb.auth.onAuthStateChange(async (_e,session)=>{
+    if(session&&session.user){
+      ME=session.user;
+      $('#authScreen').hidden=true; $('#setupScreen').hidden=true; $('#app').hidden=false;
+      try{
+        await loadAll(); hydrate(); renderAll();
+        if(await needsConsent()) $('#gate').classList.add('on');
+      }catch(e){
+        toast('تعذّر تحميل البيانات: '+(e.message||e),true);
+        setSync('err');
+      }
+    }else{
+      ME=null; $('#app').hidden=true; $('#setupScreen').hidden=true; $('#authScreen').hidden=false;
+    }
+  });
+
+  try{
+    const {data,error}=await sb.auth.getSession();
+    if(error) throw error;
+    if(!data.session){ $('#authScreen').hidden=false; }
+  }catch(e){
+    $('#authScreen').hidden=false;
+    const m=document.getElementById('authMsg');
+    if(m) m.innerHTML='<div class="note n-bad">تعذّر التحقّق من الجلسة: '+esc(e.message||e)+'</div>';
+  }
+}
+
+connect();
+</script>
+</body>
+</html>
