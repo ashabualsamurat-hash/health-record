@@ -5,8 +5,503 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>السجل الصحي</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, query, orderBy, limit, where, deleteDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+
+// ========== CONFIGURATION FIREBASE (À REMPLACER) ==========
+const firebaseConfig = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
+let app, auth, db;
+let currentUser = null;
+let charts = {};
+
+// ========== UTILITAIRES ==========
+const $ = id => document.getElementById(id);
+const esc = s => (s || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const today = () => new Date().toISOString().split('T')[0];
+const now = () => new Date().toISOString();
+
+function show(id) { $(id).classList.remove('hidden'); }
+function hide(id) { $(id).classList.add('hidden'); }
+
+function toast(msg, isError) {
+  const div = document.createElement('div');
+  div.className = 'note ' + (isError ? 'n-bad' : 'n-ok');
+  div.textContent = msg;
+  div.style.cssText = 'position:fixed;top:20px;left:20px;right:20px;z-index:9999;max-width:400px;margin:0 auto;';
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 4000);
+}
+
+// ========== INITIALISATION ==========
+async function initFirebase(config) {
+  app = initializeApp(config);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  
+
+  // Test connection
+  try {
+    await getDocs(query(collection(db, "test"), limit(1)));
+  } catch (e) {
+    // Collection doesn't exist yet, that's fine
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      currentUser = user;
+      hide('authScreen');
+      show('app');
+      await loadDashboard();
+    } else {
+      currentUser = null;
+      hide('app');
+      show('authScreen');
+    }
+  });
+
+  return true;
+}
+
+// ========== AUTH ==========
+async function signUp() {
+  const email = $('authEmail').value.trim();
+  const pass = $('authPass').value;
+  if (!email || !pass) { toast('أدخل البريد وكلمة المرور', true); return; }
+
+  const btn = $('btnSignUp');
+  btn.disabled = true;
+  try {
+    await createUserWithEmailAndPassword(auth, email, pass);
+    toast('✅ تم إنشاء الحساب!');
+  } catch (e) {
+    toast(e.message || 'فشل إنشاء الحساب', true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function signIn() {
+  const email = $('authEmail').value.trim();
+  const pass = $('authPass').value;
+  if (!email || !pass) { toast('أدخل البريد وكلمة المرور', true); return; }
+
+  const btn = $('btnSignIn');
+  btn.disabled = true;
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    toast('✅ تم تسجيل الدخول');
+  } catch (e) {
+    toast(e.message || 'فشل تسجيل الدخول', true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function logOut() {
+  await signOut(auth);
+  toast('تم تسجيل الخروج');
+}
+
+async function resetPass() {
+  const email = $('authEmail').value.trim();
+  if (!email) { toast('أدخل بريدك أولاً', true); return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    toast('✅ تم إرسال رابط إعادة التعيين');
+  } catch (e) {
+    toast(e.message || 'فشل الإرسال', true);
+  }
+}
+
+// ========== DATA FUNCTIONS ==========
+async function saveDoc(collectionName, data) {
+  data.userId = currentUser.uid;
+  data.createdAt = serverTimestamp();
+  return await addDoc(collection(db, collectionName), data);
+}
+
+async function getDocsByUser(collectionName, orderField = 'createdAt', limitCount = 50) {
+  const q = query(
+    collection(db, collectionName),
+    where('userId', '==', currentUser.uid),
+    orderBy(orderField, 'desc'),
+    limit(limitCount)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ========== DASHBOARD ==========
+async function loadDashboard() {
+  try {
+    const vitals = await getDocsByUser('vitals', 'createdAt', 1);
+    const weightHistory = await getDocsByUser('vitals', 'createdAt', 30);
+
+    let html = '';
+    if (vitals.length > 0) {
+      const v = vitals[0];
+      html += '<div class="grid3">';
+      if (v.weight) html += '<div class="card" style="padding:16px"><div class="small">الوزن</div><div style="font-size:24px;font-weight:700">' + v.weight + ' كجم</div></div>';
+      if (v.bpSys && v.bpDia) html += '<div class="card" style="padding:16px"><div class="small">الضغط</div><div style="font-size:24px;font-weight:700">' + v.bpSys + '/' + v.bpDia + '</div></div>';
+      if (v.glucose) html += '<div class="card" style="padding:16px"><div class="small">السكر</div><div style="font-size:24px;font-weight:700">' + v.glucose + '</div></div>';
+      html += '</div>';
+    } else {
+      html = '<p class="small">لا توجد قياسات مسجلة. ابدأ بإضافة قياس جديد!</p>';
+    }
+    $('dashboardSummary').innerHTML = html;
+
+    // Chart
+    const weightData = weightHistory.filter(v => v.weight).reverse();
+    if (weightData.length > 0) {
+      if (charts.weight) charts.weight.destroy();
+      charts.weight = new Chart($('chartWeight'), {
+        type: 'line',
+        data: {
+          labels: weightData.map(v => v.createdAt?.toDate?.().toISOString().split('T')[0] || ''),
+          datasets: [{
+            label: 'الوزن (كجم)',
+            data: weightData.map(v => v.weight),
+            borderColor: '#0B7A6B',
+            backgroundColor: 'rgba(11,122,107,0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    $('dashboardSummary').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
+  }
+}
+
+// ========== VITALS ==========
+async function saveVital() {
+  const data = {
+    weight: parseFloat($('vWeight').value) || null,
+    bpSys: parseInt($('vSys').value) || null,
+    bpDia: parseInt($('vDia').value) || null,
+    glucose: parseFloat($('vGlucose').value) || null,
+    water: parseFloat($('vWater').value) || null,
+    sleep: parseFloat($('vSleep').value) || null
+  };
+
+  try {
+    await saveDoc('vitals', data);
+    toast('✅ تم حفظ القياس');
+    $('vWeight').value = ''; $('vSys').value = ''; $('vDia').value = '';
+    $('vGlucose').value = ''; $('vWater').value = ''; $('vSleep').value = '';
+    await loadVitals();
+    await loadDashboard();
+  } catch (e) {
+    toast('فشل الحفظ: ' + e.message, true);
+  }
+}
+
+async function loadVitals() {
+  try {
+    const data = await getDocsByUser('vitals', 'createdAt', 20);
+    if (data.length === 0) {
+      $('vitalsList').innerHTML = '<p class="small">لا توجد قياسات</p>';
+      return;
+    }
+    let html = '';
+    data.forEach(v => {
+      const date = v.createdAt?.toDate?.().toLocaleDateString('ar-SA') || '';
+      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
+      html += '<div style="display:flex;justify-content:space-between"><strong>' + date + '</strong></div>';
+      const parts = [];
+      if (v.weight) parts.push('وزن: ' + v.weight);
+      if (v.bpSys && v.bpDia) parts.push('ضغط: ' + v.bpSys + '/' + v.bpDia);
+      if (v.glucose) parts.push('سكر: ' + v.glucose);
+      html += '<div class="small">' + parts.join(' | ') + '</div>';
+      html += '</div>';
+    });
+    $('vitalsList').innerHTML = html;
+  } catch (e) {
+    $('vitalsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
+  }
+}
+
+// ========== LABS ==========
+async function saveLab() {
+  const data = {
+    date: $('labDate').value || today(),
+    labName: $('labName').value.trim(),
+    values: []
+  };
+
+  document.querySelectorAll('#labValues .grid2').forEach(row => {
+    const code = row.querySelector('.lab-code').value.trim();
+    const val = parseFloat(row.querySelector('.lab-val').value);
+    if (code && !isNaN(val)) data.values.push({ code, value: val });
+  });
+
+  try {
+    await saveDoc('labs', data);
+    toast('✅ تم حفظ التحليل');
+    $('labName').value = '';
+    document.querySelectorAll('.lab-code, .lab-val').forEach(i => i.value = '');
+    await loadLabs();
+  } catch (e) {
+    toast('فشل الحفظ: ' + e.message, true);
+  }
+}
+
+async function loadLabs() {
+  try {
+    const data = await getDocsByUser('labs', 'createdAt', 10);
+    if (data.length === 0) {
+      $('labsList').innerHTML = '<p class="small">لا توجد تحاليل</p>';
+      return;
+    }
+    let html = '';
+    data.forEach(l => {
+      const date = l.createdAt?.toDate?.().toLocaleDateString('ar-SA') || l.date || '';
+      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
+      html += '<strong>' + date + '</strong>';
+      if (l.labName) html += ' — ' + esc(l.labName);
+      if (l.values && l.values.length > 0) {
+        html += '<div class="small" style="margin-top:4px">';
+        html += l.values.map(v => esc(v.code) + ': ' + v.value).join(' | ');
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+    $('labsList').innerHTML = html;
+  } catch (e) {
+    $('labsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
+  }
+}
+
+// ========== MEDICATIONS ==========
+async function saveMed() {
+  const data = {
+    name: $('medName').value.trim(),
+    dose: $('medDose').value.trim() || null,
+    frequency: $('medFreq').value.trim() || null,
+    status: 'active'
+  };
+  if (!data.name) { toast('أدخل اسم الدواء', true); return; }
+
+  try {
+    await saveDoc('medications', data);
+    toast('✅ تم حفظ الدواء');
+    $('medName').value = ''; $('medDose').value = ''; $('medFreq').value = '';
+    await loadMeds();
+  } catch (e) {
+    toast('فشل الحفظ: ' + e.message, true);
+  }
+}
+
+async function loadMeds() {
+  try {
+    const data = await getDocsByUser('medications', 'createdAt');
+    if (data.length === 0) {
+      $('medsList').innerHTML = '<p class="small">لا توجد أدوية</p>';
+      return;
+    }
+    let html = '';
+    data.forEach(m => {
+      html += '<div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">';
+      html += '<div><strong>' + esc(m.name) + '</strong>';
+      if (m.dose) html += '<div class="small">' + esc(m.dose) + '</div>';
+      if (m.frequency) html += '<div class="small">' + esc(m.frequency) + '</div>';
+      html += '</div>';
+      html += '<span class="small" style="color:' + (m.status === 'active' ? 'var(--good)' : 'var(--danger)') + '">' + (m.status === 'active' ? 'نشط' : 'متوقف') + '</span>';
+      html += '</div>';
+    });
+    $('medsList').innerHTML = html;
+  } catch (e) {
+    $('medsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
+  }
+}
+
+// ========== MEALS ==========
+async function saveMeal() {
+  const data = {
+    items: $('mealItems').value.trim(),
+    date: today()
+  };
+  if (!data.items) { toast('أدخل محتوى الوجبة', true); return; }
+
+  try {
+    await saveDoc('meals', data);
+    toast('✅ تم حفظ الوجبة');
+    $('mealItems').value = '';
+    await loadMeals();
+  } catch (e) {
+    toast('فشل الحفظ: ' + e.message, true);
+  }
+}
+
+async function loadMeals() {
+  try {
+    const data = await getDocsByUser('meals', 'createdAt', 20);
+    if (data.length === 0) {
+      $('mealsList').innerHTML = '<p class="small">لا توجد وجبات</p>';
+      return;
+    }
+    let html = '';
+    data.forEach(m => {
+      const date = m.createdAt?.toDate?.().toLocaleDateString('ar-SA') || m.date || '';
+      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
+      html += '<div class="small">' + date + '</div>';
+      html += '<div>' + esc(m.items) + '</div>';
+      html += '</div>';
+    });
+    $('mealsList').innerHTML = html;
+  } catch (e) {
+    $('mealsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
+  }
+}
+
+// ========== SYMPTOMS ==========
+async function saveSymptom() {
+  const data = {
+    symptoms: $('symptomText').value.trim().split(',').map(s => s.trim()).filter(s => s),
+    note: $('symptomNote').value.trim() || null,
+    date: today()
+  };
+  if (data.symptoms.length === 0) { toast('أدخل أعراضاً', true); return; }
+
+  try {
+    await saveDoc('symptoms', data);
+    toast('✅ تم حفظ الأعراض');
+    $('symptomText').value = ''; $('symptomNote').value = '';
+    await loadSymptoms();
+  } catch (e) {
+    toast('فشل الحفظ: ' + e.message, true);
+  }
+}
+
+async function loadSymptoms() {
+  try {
+    const data = await getDocsByUser('symptoms', 'createdAt', 20);
+    if (data.length === 0) {
+      $('symptomsList').innerHTML = '<p class="small">لا توجد أعراض مسجلة</p>';
+      return;
+    }
+    let html = '';
+    data.forEach(s => {
+      const date = s.createdAt?.toDate?.().toLocaleDateString('ar-SA') || s.date || '';
+      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
+      html += '<div class="small">' + date + '</div>';
+      if (s.symptoms) html += '<div>' + esc(s.symptoms.join(', ')) + '</div>';
+      if (s.note) html += '<div class="small">' + esc(s.note) + '</div>';
+      html += '</div>';
+    });
+    $('symptomsList').innerHTML = html;
+  } catch (e) {
+    $('symptomsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
+  }
+}
+
+// ========== NAVIGATION ==========
+function switchView(viewName) {
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  show('view-' + viewName);
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab[data-view="' + viewName + '"]').classList.add('active');
+
+  if (viewName === 'vitals') loadVitals();
+  if (viewName === 'labs') loadLabs();
+  if (viewName === 'meds') loadMeds();
+  if (viewName === 'meals') loadMeals();
+  if (viewName === 'symptoms') loadSymptoms();
+}
+
+// ========== EVENT LISTENERS ==========
+document.addEventListener('DOMContentLoaded', () => {
+  // Setup
+  $('btnCfg').addEventListener('click', async () => {
+    const apiKey = $('cfgApiKey').value.trim();
+    const authDomain = $('cfgAuthDomain').value.trim();
+    const projectId = $('cfgProjectId').value.trim();
+    const storageBucket = $('cfgStorageBucket').value.trim();
+    const messagingSenderId = $('cfgMessagingSenderId').value.trim();
+    const appId = $('cfgAppId').value.trim();
+
+    if (!apiKey || !projectId) {
+      $('cfgErr').innerHTML = '<div class="note n-bad">أدخل API Key و Project ID على الأقل</div>';
+      return;
+    }
+
+    const config = {
+      apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId
+    };
+
+    const btn = $('btnCfg');
+    btn.disabled = true;
+    btn.textContent = 'جارٍ الاتصال...';
+
+    try {
+      await initFirebase(config);
+      localStorage.setItem('firebaseCfg', JSON.stringify(config));
+      hide('setupScreen');
+      show('authScreen');
+    } catch (e) {
+      console.error(e);
+      $('cfgErr').innerHTML = '<div class="note n-bad">فشل الاتصال: ' + (e.message || 'خطأ غير معروف') + '</div>';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'حفظ ومتابعة';
+    }
+  });
+
+  // Auth
+  $('btnSignIn').addEventListener('click', signIn);
+  $('btnSignUp').addEventListener('click', signUp);
+  $('btnLogout').addEventListener('click', logOut);
+  $('btnReset').addEventListener('click', resetPass);
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => switchView(tab.dataset.view));
+  });
+
+  // Forms
+  $('btnSaveVital').addEventListener('click', saveVital);
+  $('btnSaveLab').addEventListener('click', saveLab);
+  $('btnAddLabRow').addEventListener('click', () => {
+    const div = document.createElement('div');
+    div.className = 'grid2';
+    div.style.marginBottom = '8px';
+    div.innerHTML = '<input class="lab-code" placeholder="رمز التحليل"> <input class="lab-val" type="number" step="0.01" placeholder="القيمة">';
+    $('labValues').appendChild(div);
+  });
+  $('btnSaveMed').addEventListener('click', saveMed);
+  $('btnSaveMeal').addEventListener('click', saveMeal);
+  $('btnSaveSymptom').addEventListener('click', saveSymptom);
+
+  // Load saved config
+  const saved = localStorage.getItem('firebaseCfg');
+  if (saved) {
+    try {
+      const cfg = JSON.parse(saved);
+      $('cfgApiKey').value = cfg.apiKey || '';
+      $('cfgAuthDomain').value = cfg.authDomain || '';
+      $('cfgProjectId').value = cfg.projectId || '';
+      $('cfgStorageBucket').value = cfg.storageBucket || '';
+      $('cfgMessagingSenderId').value = cfg.messagingSenderId || '';
+      $('cfgAppId').value = cfg.appId || '';
+    } catch (e) {}
+  }
+});
+</script>
 <style>
 :root{--bg:#F0F4F3;--surface:#fff;--primary:#0B7A6B;--primary2:#095C50;--accent:#C8A45C;--danger:#C0392B;--good:#1F7A45;--text:#0E1F2B;--muted:#7C8F9C;--line:#DCE5EA;--shadow:0 2px 8px rgba(14,31,43,.06);--r:14px}
 *{box-sizing:border-box;margin:0;padding:0;font-family:'IBM Plex Sans Arabic',system-ui,sans-serif}
@@ -41,37 +536,42 @@ label{display:block;margin-bottom:4px;color:var(--muted);font-size:13px}
 
 <div class="container">
 
-<!-- Écran de configuration -->
+<!-- Setup Screen -->
 <div id="setupScreen" class="card">
-  <h1>🔗 ربط المشروع</h1>
-  <p class="small">أدخل بيانات مشروعك في Supabase</p>
+  <h1>🔗 ربط مشروع Firebase</h1>
+  <p class="small">أدخل بيانات مشروعك من Firebase Console</p>
   <div id="cfgErr"></div>
-  <label>Project URL</label>
-  <input id="cfgUrl" placeholder="https://xxxx.supabase.co" value="https://hgpjejdgegkavyctezdi.supabase.co">
-  <label>المفتاح العلني (anon)</label>
-  <input id="cfgKey" placeholder="sb_publishable_..." value="sb_publishable_JDymJXXih0nYiua6DusJ5Q_W3YJO-Uh">
-  <div class="note n-warn">لا تضع هنا مفتاح service_role. إطلاقاً. مفتاح anon وحده هو المخصّص للواجهة.</div>
+  <label>API Key</label>
+  <input id="cfgApiKey" placeholder="AIzaSy...">
+  <label>Auth Domain</label>
+  <input id="cfgAuthDomain" placeholder="your-app.firebaseapp.com">
+  <label>Project ID</label>
+  <input id="cfgProjectId" placeholder="your-project-id">
+  <label>Storage Bucket</label>
+  <input id="cfgStorageBucket" placeholder="your-app.appspot.com">
+  <label>Messaging Sender ID</label>
+  <input id="cfgMessagingSenderId" placeholder="123456789">
+  <label>App ID</label>
+  <input id="cfgAppId" placeholder="1:123456789:web:abc123...">
   <button id="btnCfg">حفظ ومتابعة</button>
 </div>
 
-<!-- Écran d'authentification -->
+<!-- Auth Screen -->
 <div id="authScreen" class="card hidden">
   <h1>👤 تسجيل الدخول</h1>
   <div id="authMsg"></div>
-  <div id="authForm">
-    <label>البريد الإلكتروني</label>
-    <input type="email" id="authEmail" placeholder="your@email.com">
-    <label>كلمة المرور</label>
-    <input type="password" id="authPass" placeholder="••••••••">
-    <div class="grid2">
-      <button id="btnSignIn">دخول</button>
-      <button id="btnSignUp" class="btn-secondary">إنشاء حساب</button>
-    </div>
+  <label>البريد الإلكتروني</label>
+  <input type="email" id="authEmail" placeholder="your@email.com">
+  <label>كلمة المرور</label>
+  <input type="password" id="authPass" placeholder="••••••••">
+  <div class="grid2">
+    <button id="btnSignIn">دخول</button>
+    <button id="btnSignUp" class="btn-secondary">إنشاء حساب</button>
   </div>
   <button id="btnReset" class="btn-secondary" style="margin-top:8px;width:100%">نسيت كلمة المرور</button>
 </div>
 
-<!-- Application principale -->
+<!-- Main App -->
 <div id="app" class="hidden">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
@@ -197,545 +697,5 @@ label{display:block;margin-bottom:4px;color:var(--muted);font-size:13px}
 </div>
 
 </div>
-
-<script>
-// ========== CONFIGURATION ==========
-const DEFAULT_URL = "https://hgpjejdgegkavyctezdi.supabase.co";
-const DEFAULT_KEY = "sb_publishable_JDymJXXih0nYiua6DusJ5Q_W3YJO-Uh";
-
-let sb = null;
-let user = null;
-let charts = {};
-
-// ========== UTILITAIRES ==========
-const $ = id => document.getElementById(id);
-const esc = s => (s || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
-const now = () => new Date().toISOString();
-const today = () => new Date().toISOString().split('T')[0];
-
-function show(id) { $(id).classList.remove('hidden'); }
-function hide(id) { $(id).classList.add('hidden'); }
-
-function toast(msg, isError) {
-  const div = document.createElement('div');
-  div.className = 'note ' + (isError ? 'n-bad' : 'n-ok');
-  div.textContent = msg;
-  div.style.position = 'fixed';
-  div.style.top = '20px';
-  div.style.left = '20px';
-  div.style.right = '20px';
-  div.style.zIndex = '9999';
-  div.style.maxWidth = '400px';
-  div.style.margin = '0 auto';
-  document.body.appendChild(div);
-  setTimeout(() => div.remove(), 4000);
-}
-
-// ========== SUPABASE CONNECTION ==========
-async function initSupabase(url, key) {
-  console.log('Initializing Supabase...');
-  if (!window.supabase || !window.supabase.createClient) {
-    throw new Error('مكتبة Supabase لم تُحمّل بعد — أعد تحميل الصفحة');
-  }
-  sb = window.supabase.createClient(url, key);
-  console.log('Supabase client created');
-
-  // Test connection
-  const { data, error } = await sb.from('profiles').select('count').limit(1);
-  if (error && error.code !== 'PGRST116') { // PGRST116 = no rows, which is fine
-    console.error('Connection test failed:', error);
-    throw new Error('فشل الاتصال: ' + (error.message || error));
-  }
-  console.log('Connection test passed');
-  return sb;
-}
-
-// ========== AUTH ==========
-async function checkAuth() {
-  console.log('Checking auth...');
-  const { data, error } = await sb.auth.getSession();
-  if (error) {
-    console.error('Auth error:', error);
-    throw error;
-  }
-  if (data.session) {
-    user = data.session.user;
-    console.log('User authenticated:', user.email);
-    hide('authScreen');
-    show('app');
-    await loadDashboard();
-  } else {
-    console.log('No session');
-    hide('app');
-    show('authScreen');
-  }
-}
-
-async function signUp() {
-  const email = $('authEmail').value.trim();
-  const pass = $('authPass').value;
-  if (!email || !pass) { toast('أدخل البريد وكلمة المرور', true); return; }
-
-  const btn = $('btnSignUp');
-  btn.disabled = true;
-  btn.textContent = 'جارٍ الإنشاء...';
-
-  try {
-    const { data, error } = await sb.auth.signUp({ email, password: pass });
-    if (error) throw error;
-    toast('✅ تم إنشاء الحساب! تحقق من بريدك لتأكيده.');
-    $('authMsg').innerHTML = '<div class="note n-ok">تم الإرسال! افتح بريدك واضغط على رابط التأكيد.</div>';
-  } catch (e) {
-    toast(e.message || 'فشل إنشاء الحساب', true);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'إنشاء حساب';
-  }
-}
-
-async function signIn() {
-  const email = $('authEmail').value.trim();
-  const pass = $('authPass').value;
-  if (!email || !pass) { toast('أدخل البريد وكلمة المرور', true); return; }
-
-  const btn = $('btnSignIn');
-  btn.disabled = true;
-  btn.textContent = 'جارٍ الدخول...';
-
-  try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-    if (error) throw error;
-    toast('✅ تم تسجيل الدخول');
-    await checkAuth();
-  } catch (e) {
-    toast(e.message || 'فشل تسجيل الدخول', true);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'دخول';
-  }
-}
-
-async function signOut() {
-  await sb.auth.signOut();
-  user = null;
-  hide('app');
-  show('authScreen');
-  toast('تم تسجيل الخروج');
-}
-
-// ========== DASHBOARD ==========
-async function loadDashboard() {
-  try {
-    // Get latest vitals
-    const { data: vitals } = await sb.from('vitals')
-      .select('*')
-      .order('measured_at', { ascending: false })
-      .limit(1);
-
-    // Get weight history for chart
-    const { data: weightHistory } = await sb.from('vitals')
-      .select('measured_at, weight_kg')
-      .order('measured_at', { ascending: true })
-      .limit(30);
-
-    let html = '';
-    if (vitals && vitals.length > 0) {
-      const v = vitals[0];
-      html += '<div class="grid3">';
-      if (v.weight_kg) html += '<div class="card" style="padding:16px"><div class="small">الوزن</div><div style="font-size:24px;font-weight:700">' + v.weight_kg + ' كجم</div></div>';
-      if (v.bp_sys && v.bp_dia) html += '<div class="card" style="padding:16px"><div class="small">الضغط</div><div style="font-size:24px;font-weight:700">' + v.bp_sys + '/' + v.bp_dia + '</div></div>';
-      if (v.glucose) html += '<div class="card" style="padding:16px"><div class="small">السكر</div><div style="font-size:24px;font-weight:700">' + v.glucose + '</div></div>';
-      html += '</div>';
-    } else {
-      html = '<p class="small">لا توجد قياسات مسجلة. ابدأ بإضافة قياس جديد!</p>';
-    }
-    $('dashboardSummary').innerHTML = html;
-
-    // Chart
-    if (weightHistory && weightHistory.length > 0) {
-      const labels = weightHistory.map(v => v.measured_at.split('T')[0]);
-      const data = weightHistory.map(v => v.weight_kg);
-
-      if (charts.weight) charts.weight.destroy();
-      charts.weight = new Chart($('chartWeight'), {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'الوزن (كجم)',
-            data: data,
-            borderColor: '#0B7A6B',
-            backgroundColor: 'rgba(11,122,107,0.1)',
-            fill: true,
-            tension: 0.3
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: false } }
-        }
-      });
-    }
-  } catch (e) {
-    console.error('Dashboard error:', e);
-    $('dashboardSummary').innerHTML = '<div class="note n-bad">فشل تحميل البيانات</div>';
-  }
-}
-
-// ========== VITALS ==========
-async function saveVital() {
-  const vital = {
-    subscriber_id: user.id,
-    weight_kg: parseFloat($('vWeight').value) || null,
-    bp_sys: parseInt($('vSys').value) || null,
-    bp_dia: parseInt($('vDia').value) || null,
-    glucose: parseFloat($('vGlucose').value) || null,
-    water_l: parseFloat($('vWater').value) || null,
-    sleep_h: parseFloat($('vSleep').value) || null,
-    measured_at: now()
-  };
-
-  try {
-    const { error } = await sb.from('vitals').insert(vital);
-    if (error) throw error;
-    toast('✅ تم حفظ القياس');
-    $('vWeight').value = ''; $('vSys').value = ''; $('vDia').value = '';
-    $('vGlucose').value = ''; $('vWater').value = ''; $('vSleep').value = '';
-    await loadVitals();
-    await loadDashboard();
-  } catch (e) {
-    toast('فشل الحفظ: ' + (e.message || e), true);
-  }
-}
-
-async function loadVitals() {
-  try {
-    const { data, error } = await sb.from('vitals')
-      .select('*')
-      .order('measured_at', { ascending: false })
-      .limit(20);
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      $('vitalsList').innerHTML = '<p class="small">لا توجد قياسات</p>';
-      return;
-    }
-
-    let html = '';
-    data.forEach(v => {
-      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
-      html += '<div style="display:flex;justify-content:space-between"><strong>' + (v.measured_at ? v.measured_at.split('T')[0] : '') + '</strong></div>';
-      const parts = [];
-      if (v.weight_kg) parts.push('وزن: ' + v.weight_kg + ' كجم');
-      if (v.bp_sys && v.bp_dia) parts.push('ضغط: ' + v.bp_sys + '/' + v.bp_dia);
-      if (v.glucose) parts.push('سكر: ' + v.glucose);
-      html += '<div class="small">' + parts.join(' | ') + '</div>';
-      html += '</div>';
-    });
-    $('vitalsList').innerHTML = html;
-  } catch (e) {
-    $('vitalsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
-  }
-}
-
-// ========== LABS ==========
-async function saveLab() {
-  const report = {
-    subscriber_id: user.id,
-    taken_on: $('labDate').value || today(),
-    lab_name: $('labName').value || null
-  };
-
-  try {
-    const { data: reportData, error: reportError } = await sb.from('lab_reports').insert(report).select();
-    if (reportError) throw reportError;
-
-    const reportId = reportData[0].id;
-    const rows = document.querySelectorAll('#labValues .grid2');
-    const values = [];
-    rows.forEach(row => {
-      const code = row.querySelector('.lab-code').value.trim();
-      const val = parseFloat(row.querySelector('.lab-val').value);
-      if (code && !isNaN(val)) {
-        values.push({ report_id: reportId, test_code: code, value: val });
-      }
-    });
-
-    if (values.length > 0) {
-      const { error } = await sb.from('lab_values').insert(values);
-      if (error) throw error;
-    }
-
-    toast('✅ تم حفظ التحليل');
-    $('labName').value = '';
-    document.querySelectorAll('.lab-code, .lab-val').forEach(i => i.value = '');
-    await loadLabs();
-  } catch (e) {
-    toast('فشل الحفظ: ' + (e.message || e), true);
-  }
-}
-
-async function loadLabs() {
-  try {
-    const { data, error } = await sb.from('lab_reports')
-      .select('*, lab_values(*)')
-      .order('taken_on', { ascending: false })
-      .limit(10);
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      $('labsList').innerHTML = '<p class="small">لا توجد تحاليل</p>';
-      return;
-    }
-
-    let html = '';
-    data.forEach(r => {
-      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
-      html += '<strong>' + (r.taken_on || '') + '</strong>';
-      if (r.lab_name) html += ' — ' + esc(r.lab_name);
-      if (r.lab_values && r.lab_values.length > 0) {
-        html += '<div class="small" style="margin-top:4px">';
-        html += r.lab_values.map(v => esc(v.test_code) + ': ' + v.value).join(' | ');
-        html += '</div>';
-      }
-      html += '</div>';
-    });
-    $('labsList').innerHTML = html;
-  } catch (e) {
-    $('labsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
-  }
-}
-
-// ========== MEDICATIONS ==========
-async function saveMed() {
-  const med = {
-    subscriber_id: user.id,
-    name: $('medName').value.trim(),
-    dose: $('medDose').value.trim() || null,
-    frequency: $('medFreq').value.trim() || null
-  };
-  if (!med.name) { toast('أدخل اسم الدواء', true); return; }
-
-  try {
-    const { error } = await sb.from('medications').insert(med);
-    if (error) throw error;
-    toast('✅ تم حفظ الدواء');
-    $('medName').value = ''; $('medDose').value = ''; $('medFreq').value = '';
-    await loadMeds();
-  } catch (e) {
-    toast('فشل الحفظ: ' + (e.message || e), true);
-  }
-}
-
-async function loadMeds() {
-  try {
-    const { data, error } = await sb.from('medications')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      $('medsList').innerHTML = '<p class="small">لا توجد أدوية</p>';
-      return;
-    }
-
-    let html = '';
-    data.forEach(m => {
-      html += '<div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">';
-      html += '<div><strong>' + esc(m.name) + '</strong>';
-      if (m.dose) html += '<div class="small">' + esc(m.dose) + '</div>';
-      if (m.frequency) html += '<div class="small">' + esc(m.frequency) + '</div>';
-      html += '</div>';
-      html += '<span class="small" style="color:' + (m.status === 'active' ? 'var(--good)' : 'var(--danger)') + '">' + (m.status === 'active' ? 'نشط' : 'متوقف') + '</span>';
-      html += '</div>';
-    });
-    $('medsList').innerHTML = html;
-  } catch (e) {
-    $('medsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
-  }
-}
-
-// ========== MEALS ==========
-async function saveMeal() {
-  const meal = {
-    subscriber_id: user.id,
-    items: [{ name: $('mealItems').value.trim() }],
-    eaten_at: now()
-  };
-  if (!meal.items[0].name) { toast('أدخل محتوى الوجبة', true); return; }
-
-  try {
-    const { error } = await sb.from('meals').insert(meal);
-    if (error) throw error;
-    toast('✅ تم حفظ الوجبة');
-    $('mealItems').value = '';
-    await loadMeals();
-  } catch (e) {
-    toast('فشل الحفظ: ' + (e.message || e), true);
-  }
-}
-
-async function loadMeals() {
-  try {
-    const { data, error } = await sb.from('meals')
-      .select('*')
-      .order('eaten_at', { ascending: false })
-      .limit(20);
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      $('mealsList').innerHTML = '<p class="small">لا توجد وجبات</p>';
-      return;
-    }
-
-    let html = '';
-    data.forEach(m => {
-      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
-      html += '<div class="small">' + (m.eaten_at ? m.eaten_at.split('T')[0] + ' ' + m.eaten_at.split('T')[1].slice(0,5) : '') + '</div>';
-      if (m.items && m.items.length > 0) {
-        html += '<div>' + esc(m.items.map(i => i.name || i).join(', ')) + '</div>';
-      }
-      html += '</div>';
-    });
-    $('mealsList').innerHTML = html;
-  } catch (e) {
-    $('mealsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
-  }
-}
-
-// ========== SYMPTOMS ==========
-async function saveSymptom() {
-  const symptoms = $('symptomText').value.trim().split(',').map(s => s.trim()).filter(s => s);
-  const symptom = {
-    subscriber_id: user.id,
-    scores: symptoms.reduce((acc, s) => { acc[s] = 1; return acc; }, {}),
-    note: $('symptomNote').value.trim() || null,
-    logged_at: now()
-  };
-  if (symptoms.length === 0) { toast('أدخل أعراضاً', true); return; }
-
-  try {
-    const { error } = await sb.from('symptom_logs').insert(symptom);
-    if (error) throw error;
-    toast('✅ تم حفظ الأعراض');
-    $('symptomText').value = ''; $('symptomNote').value = '';
-    await loadSymptoms();
-  } catch (e) {
-    toast('فشل الحفظ: ' + (e.message || e), true);
-  }
-}
-
-async function loadSymptoms() {
-  try {
-    const { data, error } = await sb.from('symptom_logs')
-      .select('*')
-      .order('logged_at', { ascending: false })
-      .limit(20);
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      $('symptomsList').innerHTML = '<p class="small">لا توجد أعراض مسجلة</p>';
-      return;
-    }
-
-    let html = '';
-    data.forEach(s => {
-      html += '<div class="card" style="padding:12px;margin-bottom:8px">';
-      html += '<div class="small">' + (s.logged_at ? s.logged_at.split('T')[0] : '') + '</div>';
-      if (s.scores) {
-        const symptoms = Object.keys(s.scores).join(', ');
-        html += '<div>' + esc(symptoms) + '</div>';
-      }
-      if (s.note) html += '<div class="small">' + esc(s.note) + '</div>';
-      html += '</div>';
-    });
-    $('symptomsList').innerHTML = html;
-  } catch (e) {
-    $('symptomsList').innerHTML = '<div class="note n-bad">فشل التحميل</div>';
-  }
-}
-
-// ========== NAVIGATION ==========
-function switchView(viewName) {
-  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-  show('view-' + viewName);
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('.tab[data-view="' + viewName + '"]').classList.add('active');
-
-  // Load data for the view
-  if (viewName === 'vitals') loadVitals();
-  if (viewName === 'labs') loadLabs();
-  if (viewName === 'meds') loadMeds();
-  if (viewName === 'meals') loadMeals();
-  if (viewName === 'symptoms') loadSymptoms();
-}
-
-// ========== EVENT LISTENERS ==========
-document.addEventListener('DOMContentLoaded', () => {
-  // Setup screen
-  $('btnCfg').addEventListener('click', async () => {
-    const url = $('cfgUrl').value.trim().replace(/\/+$/, '');
-    const key = $('cfgKey').value.trim();
-    const errDiv = $('cfgErr');
-    errDiv.innerHTML = '';
-
-    if (!url) { errDiv.innerHTML = '<div class="note n-bad">أدخل عنوان المشروع</div>'; return; }
-    if (!key) { errDiv.innerHTML = '<div class="note n-bad">أدخل المفتاح</div>'; return; }
-
-    const btn = $('btnCfg');
-    btn.disabled = true;
-    btn.textContent = 'جارٍ الاتصال...';
-
-    try {
-      await initSupabase(url, key);
-      localStorage.setItem('sbCfg', JSON.stringify({ url, key }));
-      hide('setupScreen');
-      show('authScreen');
-      await checkAuth();
-    } catch (e) {
-      console.error('Setup error:', e);
-      errDiv.innerHTML = '<div class="note n-bad">' + (e.message || 'فشل الاتصال') + '</div>';
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'حفظ ومتابعة';
-    }
-  });
-
-  // Auth
-  $('btnSignIn').addEventListener('click', signIn);
-  $('btnSignUp').addEventListener('click', signUp);
-  $('btnLogout').addEventListener('click', signOut);
-
-  // Tabs
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => switchView(tab.dataset.view));
-  });
-
-  // Forms
-  $('btnSaveVital').addEventListener('click', saveVital);
-  $('btnSaveLab').addEventListener('click', saveLab);
-  $('btnAddLabRow').addEventListener('click', () => {
-    const div = document.createElement('div');
-    div.className = 'grid2';
-    div.style.marginBottom = '8px';
-    div.innerHTML = '<input class="lab-code" placeholder="رمز التحليل"> <input class="lab-val" type="number" step="0.01" placeholder="القيمة">';
-    $('labValues').appendChild(div);
-  });
-  $('btnSaveMed').addEventListener('click', saveMed);
-  $('btnSaveMeal').addEventListener('click', saveMeal);
-  $('btnSaveSymptom').addEventListener('click', saveSymptom);
-
-  // Check saved config
-  const saved = localStorage.getItem('sbCfg');
-  if (saved) {
-    try {
-      const cfg = JSON.parse(saved);
-      $('cfgUrl').value = cfg.url;
-      $('cfgKey').value = cfg.key;
-    } catch (e) {}
-  }
-});
-</script>
 </body>
 </html>
